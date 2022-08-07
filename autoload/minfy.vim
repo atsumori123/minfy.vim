@@ -113,27 +113,29 @@ endfunction
 "---------------------------------------------------------------
 function! s:set_keymap(map_type) abort
 	if a:map_type == "FILER"
-		execute "nmap <buffer> <silent> <CR> <plug>(minfy-open-current)"
-		execute "nmap <buffer> <silent> <S-CR> <plug>(minfy-close-open-current)"
-		execute "nmap <buffer> <silent> . <plug>(minfy-toggle-hidden)"
-		execute "nmap <buffer> <silent> b <plug>(minfy-bookmark-open)"
-		execute "nmap <buffer> <silent> l <plug>(minfy-open-current)"
-		execute "nmap <buffer> <silent> L <plug>(minfy-close-open-current)"
-		execute "nmap <buffer> <silent> h <plug>(minfy-open-parent)"
-		execute "nmap <buffer> <silent> q <plug>(minfy-quit)"
-		execute "nmap <buffer> <silent> a <nop>"
-		execute "nmap <buffer> <silent> d <nop>"
+		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>open_current('edit', 0)<CR>
+		nnoremap <buffer> <silent> <S-CR> :<C-u>call <SID>open_current('edit', 1)<CR>
+		nnoremap <buffer> <silent> l :<C-u>call <SID>open_current('edit', 0)<CR>
+		nnoremap <buffer> <silent> L :<C-u>call <SID>open_current('edit', 1)<CR>
+		nnoremap <buffer> <silent> v :<C-u>call <SID>open_current('vsplit', 0)<CR>
+		nnoremap <buffer> <silent> . :<C-u>call <SID>toggle_hidden()<CR>
+		nnoremap <buffer> <silent> b :<C-u>call <SID>bookmark_open()<CR>
+		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
+		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
+		nnoremap <buffer> <silent> a <nop>
+		nnoremap <buffer> <silent> d <nop>
 	else
-		execute "nmap <buffer> <silent> <CR> <plug>(minfy-bookmark-selected)"
-		execute "nmap <buffer> <silent> <S-CR> <nop>"
-		execute "nmap <buffer> <silent> . <nop>"
-		execute "nmap <buffer> <silent> b <nop>"
-		execute "nmap <buffer> <silent> l <plug>(minfy-bookmark-selected)"
-		execute "nmap <buffer> <silent> L <nop>"
-		execute "nmap <buffer> <silent> h <nop>"
-		execute "nmap <buffer> <silent> q <plug>(minfy-bookmark-close)"
-		execute "nmap <buffer> <silent> a <plug>(minfy-bookmark-add)"
-		execute "nmap <buffer> <silent> d <plug>(minfy-bookmark-delete)"
+		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected()<CR>
+		nnoremap <buffer> <silent> <S-CR> <nop>
+		nnoremap <buffer> <silent> l :<C-u>call <SID>bookmark_selected()<CR>
+		nnoremap <buffer> <silent> L <nop>
+		nnoremap <buffer> <silent> v <nop>
+		nnoremap <buffer> <silent> . <nop>
+		nnoremap <buffer> <silent> b <nop>
+		nnoremap <buffer> <silent> h <nop>
+		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
+		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
+		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_delete()<CR>
 	endif
 endfunction
 
@@ -232,11 +234,12 @@ endfunction
 "---------------------------------------------------------------
 " file_open
 "---------------------------------------------------------------
-function! s:file_open(item) abort
+function! s:file_open(item, open_cmd) abort
  	if isdirectory(a:item.path)
 		call s:init_minfy(a:item.path)
 	else
-		execute printf('keepalt edit %s', fnameescape(a:item.path))
+	"	bdelete
+		execute printf('keepalt %s %s', a:open_cmd, fnameescape(a:item.path))
 	endif
 endfunction
 
@@ -288,40 +291,9 @@ function! s:init_minfy(path) abort
 endfunction
 
 "---------------------------------------------------------------
-" bookmark_load
+" open_current
 "---------------------------------------------------------------
-function! s:bookmark_load() abort
-	return filereadable(g:minfy_bookmark_file) ? readfile(g:minfy_bookmark_file) : []
-endfunction
-
-"---------------------------------------------------------------
-" bookmark_save
-"---------------------------------------------------------------
-function! s:bookmark_save() abort
-	call writefile(s:bookmark, g:minfy_bookmark_file)
-endfunction
-
-"---------------------------------------------------------------
-" minfy#start
-"---------------------------------------------------------------
-function! minfy#start(...) abort
-	" duplicate open is nop
-	if bufname('%') =~ "^minfy://[0-9]*/.*$"
-		return
-	endif
-
-	" get directory path. if nothing then current directory path
-	let path = get(a:000, 0, getcwd())
-
-	" save current buffer number. use with 'close and open' function
-	let s:save_bufnr = bufnr("%")
-	call s:init_minfy(path)
-endfunction
-
-"---------------------------------------------------------------
-" minfy#open_current
-"---------------------------------------------------------------
-function! minfy#open_current(close_and_open) abort
+function! s:open_current(open_cmd, close_and_open) abort
 	call s:keep_buffer_singularity()
 
 	" get cursor item
@@ -333,7 +305,7 @@ function! minfy#open_current(close_and_open) abort
 	call s:save_cursor(item)
 
 	" next directory open or file open
-	call s:file_open(item)
+	call s:file_open(item, a:open_cmd)
 
 	" close and open (file open only)
 	if a:close_and_open && !item.is_dir
@@ -344,9 +316,9 @@ function! minfy#open_current(close_and_open) abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#open_parent
+" open_parent
 "---------------------------------------------------------------
-function! minfy#open_parent() abort
+function! s:open_parent() abort
 	call s:keep_buffer_singularity()
 
 	let filer = s:get_filer()
@@ -365,7 +337,7 @@ function! minfy#open_parent() abort
 	let new_item = s:get_item_info_from_path(new_dir)
 
 	" next directory open or file open
-	call s:file_open(new_item)
+	call s:file_open(new_item, '')
 
 	" Move cursor to previous current directory
 	let prev_dir_item =s:get_item_info_from_path(filer.dir)
@@ -373,9 +345,9 @@ function! minfy#open_parent() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#quit
+" quit
 "---------------------------------------------------------------
-function! minfy#quit() abort
+function! s:quit() abort
 	call s:keep_buffer_singularity()
 
 	" Try restoring alternate buffer
@@ -388,9 +360,9 @@ function! minfy#quit() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#toggle_hidden
+" toggle_hidden
 "---------------------------------------------------------------
-function! minfy#toggle_hidden() abort
+function! s:toggle_hidden() abort
 	call s:keep_buffer_singularity()
 
 	" get cursor itemm
@@ -409,9 +381,9 @@ function! minfy#toggle_hidden() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#bookmark_open
+" bookmark_open
 "---------------------------------------------------------------
-function! minfy#bookmark_open() abort
+function! s:bookmark_open() abort
 	" Give unique name to buffer to avoid unwanted sync between different windows
 	execute printf('silent keepalt file %s', s:generate_unique_bufname('bookmark'))
 
@@ -445,9 +417,23 @@ function! minfy#bookmark_open() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#bookmark_selected
+" bookmark_load
 "---------------------------------------------------------------
-function! minfy#bookmark_selected() abort
+function! s:bookmark_load() abort
+	return filereadable(g:minfy_bookmark_file) ? readfile(g:minfy_bookmark_file) : []
+endfunction
+
+"---------------------------------------------------------------
+" bookmark_save
+"---------------------------------------------------------------
+function! s:bookmark_save() abort
+	call writefile(s:bookmark, g:minfy_bookmark_file)
+endfunction
+
+"---------------------------------------------------------------
+" bookmark_selected
+"---------------------------------------------------------------
+function! s:bookmark_selected() abort
 	" Get selected line
 	let dir = substitute(getline("."), ".*\t", "", "")
 
@@ -473,9 +459,9 @@ function! minfy#bookmark_selected() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#bookmark_add
+" bookmark_add
 "---------------------------------------------------------------
-function! minfy#bookmark_add() abort
+function! s:bookmark_add() abort
 	let filer = s:get_filer()
 	let dir = filer.dir
 
@@ -518,9 +504,9 @@ function! minfy#bookmark_add() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#bookmark_delete
+" bookmark_delete
 "---------------------------------------------------------------
-function! minfy#bookmark_delete() abort
+function! s:bookmark_delete() abort
 	let pos = getpos(".")
 	call remove(s:bookmark, pos[1] - 1)
 	setlocal modifiable
@@ -530,13 +516,31 @@ function! minfy#bookmark_delete() abort
 endfunction
 
 "---------------------------------------------------------------
-" minfy#bookmark_close
+" bookmark_close
 "---------------------------------------------------------------
-function! minfy#bookmark_close() abort
+function! s:bookmark_close() abort
 	let filer = s:get_filer()
 	call s:redraw()
 	call s:set_keymap('FILER')
 endfunction
+
+"---------------------------------------------------------------
+" minfy#start
+"---------------------------------------------------------------
+function! minfy#start(...) abort
+	" duplicate open is nop
+	if bufname('%') =~ "^minfy://[0-9]*/.*$"
+		return
+	endif
+
+	" get directory path. if nothing then current directory path
+	let path = get(a:000, 0, getcwd())
+
+	" save current buffer number. use with 'close and open' function
+	let s:save_bufnr = bufnr("%")
+	call s:init_minfy(path)
+endfunction
+
 
 let &cpoptions = s:save_cpo
 unlet s:save_cpo
