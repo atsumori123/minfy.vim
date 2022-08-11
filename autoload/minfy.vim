@@ -454,19 +454,11 @@ function! s:bookmark_selected() abort
 		return
 	endif
 
-	let filer = s:get_filer()
-	let hidden = filer.show_hidden
-
 	" create filer
 	unlet b:minfy
-	let filer = s:get_filer()
-	let filer['dir'] = s:get_full_path(dir)
-	let filer['items'] = s:get_items_from_dir(filer.dir, filer.show_hidden)
-	let filer['show_hidden'] = hidden
-	call s:set_filer(filer)
 
-	call s:redraw()
-	call s:set_keymap('FILER')
+	" open filer
+	call s:init_minfy(dir)
 endfunction
 
 "---------------------------------------------------------------
