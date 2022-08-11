@@ -112,6 +112,10 @@ endfunction
 " set_keymap
 "---------------------------------------------------------------
 function! s:set_keymap(map_type) abort
+	if a:map_type == s:current_map_type
+		return
+	endif
+
 	if a:map_type == "FILER"
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>open_current('edit', 0)<CR>
 		nnoremap <buffer> <silent> <S-CR> :<C-u>call <SID>open_current('edit', 1)<CR>
@@ -141,6 +145,8 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent><DEL> :<C-u>call <SID>bookmark_delete()<CR>
 	endif
+
+	let s:current_map_type = a:map_type
 endfunction
 
 "---------------------------------------------------------------
@@ -551,7 +557,9 @@ function! minfy#start(...) abort
 	" get directory path. if nothing then current directory path
 	let path = get(a:000, 0, getcwd())
 
-	" save current buffer number. use with 'close and open' function
+	let s:current_map_type = 'UNDEF'
+
+ 	" save current buffer number. use with 'close and open' function
 	let s:save_bufnr = bufnr("%")
 	call s:init_minfy(path)
 endfunction
