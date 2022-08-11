@@ -123,7 +123,9 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a <nop>
+		nnoremap <buffer> <silent> u <nop>
 		nnoremap <buffer> <silent> d <nop>
+		nnoremap <buffer> <silent><DEL> <nop>
 	else
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected()<CR>
 		nnoremap <buffer> <silent> <S-CR> <nop>
@@ -135,7 +137,9 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
-		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_delete()<CR>
+		nnoremap <buffer> <silent> u :<C-u>call <SID>bookmark_up()<CR>
+		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_down()<CR>
+		nnoremap <buffer> <silent><DEL> :<C-u>call <SID>bookmark_delete()<CR>
 	endif
 endfunction
 
@@ -414,6 +418,8 @@ function! s:bookmark_open() abort
 
 	" Move the cursor to the beginning of the file
 	normal! gg
+
+	let s:change_bookmark = 0
 endfunction
 
 "---------------------------------------------------------------
@@ -434,6 +440,11 @@ endfunction
 " bookmark_selected
 "---------------------------------------------------------------
 function! s:bookmark_selected() abort
+	" If Bookmark changed, it is save
+	if s:change_bookmark
+		call s:bookmark_save()
+	endif
+
 	" Get selected line
 	let dir = substitute(getline("."), ".*\t", "", "")
 
@@ -484,7 +495,7 @@ function! s:bookmark_add() abort
 	call insert(s:bookmark, abbreviation."\t".dir, 0)
 	
 	" Save bookmark file
-	call s:bookmark_save()
+	let s:change_bookmark = 1
 
 	let output = []
 	for bk in s:bookmark
@@ -504,6 +515,52 @@ function! s:bookmark_add() abort
 endfunction
 
 "---------------------------------------------------------------
+" bookmark_up
+"---------------------------------------------------------------
+function! s:bookmark_up() abort
+	let pos = getpos(".")
+	if pos[1] <= 1
+		return
+	endif
+
+	setlocal modifiable
+	let temp1 = remove(s:bookmark, pos[1] - 1)
+	let temp2 = getline(".")
+	del _
+
+	let pos[1] -= 1
+	call insert(s:bookmark, temp1, pos[1] - 1)
+	call append(pos[1] - 1, temp2)
+	call setpos(".", pos)
+	setlocal nomodifiable
+
+	let s:change_bookmark = 1
+endfunction
+
+"---------------------------------------------------------------
+" bookmark_down
+"---------------------------------------------------------------
+function! s:bookmark_down() abort
+	let pos = getpos(".")
+	if pos[1] >= len(s:bookmark)
+		return
+	endif
+
+	setlocal modifiable
+	let temp1 = remove(s:bookmark, pos[1] - 1)
+	let temp2 = getline(".")
+	del _
+
+	let pos[1] += 1
+	call insert(s:bookmark, temp1, pos[1] - 1)
+	call append(pos[1] - 1, temp2)
+	call setpos(".", pos)
+	setlocal nomodifiable
+
+	let s:change_bookmark = 1
+endfunction
+
+"---------------------------------------------------------------
 " bookmark_delete
 "---------------------------------------------------------------
 function! s:bookmark_delete() abort
@@ -512,13 +569,18 @@ function! s:bookmark_delete() abort
 	setlocal modifiable
 	del _
 	setlocal nomodifiable
-	call s:bookmark_save()
+
+	let s:change_bookmark = 1
 endfunction
 
 "---------------------------------------------------------------
 " bookmark_close
 "---------------------------------------------------------------
 function! s:bookmark_close() abort
+	if s:change_bookmark
+		call s:bookmark_save()
+	endif
+
 	let filer = s:get_filer()
 	call s:redraw()
 	call s:set_keymap('FILER')
