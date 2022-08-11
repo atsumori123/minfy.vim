@@ -122,7 +122,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> b :<C-u>call <SID>bookmark_open()<CR>
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
-		nnoremap <buffer> <silent> a <nop>
+		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> u <nop>
 		nnoremap <buffer> <silent> d <nop>
 		nnoremap <buffer> <silent><DEL> <nop>
@@ -136,7 +136,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> b <nop>
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
-		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
+		nnoremap <buffer> <silent> a <nop>
 		nnoremap <buffer> <silent> u :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent><DEL> :<C-u>call <SID>bookmark_delete()<CR>
@@ -213,7 +213,8 @@ function! s:restore_cursor() abort
 	call cursor([lnum, 1, 0, 1])
 endfunction
 
-"---------------------------------------------------------------
+"--------------
+"-------------------------------------------------
 " save_cursor
 "---------------------------------------------------------------
 function! s:save_cursor(item) abort
@@ -446,19 +447,13 @@ function! s:bookmark_selected() abort
 	endif
 
 	" Get selected line
-	let dir = substitute(getline("."), ".*\t", "", "")
-
-	" Directory exist check
-	if !isdirectory(dir)
-		echohl WarningMsg | echomsg 'Error: Directory ' . dir. " doesn't exist" | echohl None
-		return
-	endif
+	let path = substitute(getline("."), ".*\t", "", "")
 
 	" create filer
 	unlet b:minfy
 
-	" open filer
-	call s:init_minfy(dir)
+	let item = s:get_item_info_from_path(path)
+	call s:file_open(item, 'edit')
 endfunction
 
 "---------------------------------------------------------------
@@ -466,14 +461,10 @@ endfunction
 "---------------------------------------------------------------
 function! s:bookmark_add() abort
 	let filer = s:get_filer()
-	let dir = filer.dir
+	let item = s:get_cursor_item(filer)
+	if empty(item.path) | return | endif
 
-	if !isdirectory(dir)
-		echohl WarningMsg | echomsg 'Error: Directory ' . dir. " doesn't exist" | echohl None
-		return
-	endif
-
-	echo dir
+	echo item.path
 	let abbreviation = input('abbreviation: ')
 	let abbreviation = abbreviation[:19]
 	if !len(abbreviation)
@@ -481,29 +472,15 @@ function! s:bookmark_add() abort
 	endif
 
 	" Remove the new file name from the existing RF list (if already present)
-	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# dir')
+	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item.path')
 	
 	" Add the new file list to the beginning of the updated old file list
-	call insert(s:bookmark, abbreviation."\t".dir, 0)
+	call insert(s:bookmark, abbreviation."\t".item.path, 0)
 	
 	" Save bookmark file
-	let s:change_bookmark = 1
+	call s:bookmark_save()
 
-	let output = []
-	for bk in s:bookmark
-		let wk = split(bk, "\t")
-		call add(output, printf("%-20s\t%s", wk[0], wk[1]))
-	endfor
-
-	" Delete the contents of the buffer to the black-hole register
-	setlocal modifiable
-	silent! %delete _
-	silent! 0put = output
-	silent! $delete _
-	setlocal nomodifiable
-	normal! gg
-
-	echo "\rAdd to bookmark. (".dir.")"
+	echo "\rAdd to bookmark. (".item.path.")"
 endfunction
 
 "---------------------------------------------------------------
