@@ -137,8 +137,8 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
-		nnoremap <buffer> <silent> u :<C-u>call <SID>bookmark_up()<CR>
-		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_down()<CR>
+		nnoremap <buffer> <silent> u :<C-u>call <SID>bookmark_updown('up')<CR>
+		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent><DEL> :<C-u>call <SID>bookmark_delete()<CR>
 	endif
 endfunction
@@ -515,12 +515,18 @@ function! s:bookmark_add() abort
 endfunction
 
 "---------------------------------------------------------------
-" bookmark_up
+" bookmark_updown
 "---------------------------------------------------------------
-function! s:bookmark_up() abort
+function! s:bookmark_updown(updown) abort
 	let pos = getpos(".")
-	if pos[1] <= 1
-		return
+	if a:updown == 'up'
+		if pos[1] <= 1
+			return
+		endif
+	else 
+		if pos[1] >= len(s:bookmark)
+			return
+		endif
 	endif
 
 	setlocal modifiable
@@ -528,30 +534,8 @@ function! s:bookmark_up() abort
 	let temp2 = getline(".")
 	del _
 
-	let pos[1] -= 1
-	call insert(s:bookmark, temp1, pos[1] - 1)
-	call append(pos[1] - 1, temp2)
-	call setpos(".", pos)
-	setlocal nomodifiable
+	let pos[1] += a:updown == 'up' ? -1 : 1
 
-	let s:change_bookmark = 1
-endfunction
-
-"---------------------------------------------------------------
-" bookmark_down
-"---------------------------------------------------------------
-function! s:bookmark_down() abort
-	let pos = getpos(".")
-	if pos[1] >= len(s:bookmark)
-		return
-	endif
-
-	setlocal modifiable
-	let temp1 = remove(s:bookmark, pos[1] - 1)
-	let temp2 = getline(".")
-	del _
-
-	let pos[1] += 1
 	call insert(s:bookmark, temp1, pos[1] - 1)
 	call append(pos[1] - 1, temp2)
 	call setpos(".", pos)
