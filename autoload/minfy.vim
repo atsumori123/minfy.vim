@@ -131,11 +131,11 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> d <nop>
 		nnoremap <buffer> <silent><DEL> <nop>
 	else
-		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected()<CR>
-		nnoremap <buffer> <silent> <S-CR> <nop>
-		nnoremap <buffer> <silent> l :<C-u>call <SID>bookmark_selected()<CR>
-		nnoremap <buffer> <silent> L <nop>
-		nnoremap <buffer> <silent> v <nop>
+		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
+		nnoremap <buffer> <silent> <S-CR> :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
+		nnoremap <buffer> <silent> l :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
+		nnoremap <buffer> <silent> L :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
+		nnoremap <buffer> <silent> v :<C-u>call <SID>bookmark_selected('vsplit', 0)<CR>
 		nnoremap <buffer> <silent> . <nop>
 		nnoremap <buffer> <silent> b <nop>
 		nnoremap <buffer> <silent> h <nop>
@@ -159,22 +159,24 @@ function! s:open_minfy(filer) abort
 	" Mapping
 	call s:set_keymap('FILER')
 
-	setlocal bufhidden=delete
-	setlocal buftype=nowrite
-	setlocal filetype=minfy
-	setlocal matchpairs=
-	setlocal noswapfile
-	setlocal nowrap
+	if &filetype != 'minfy'
+		setlocal bufhidden=delete
+		setlocal buftype=nowrite
+		setlocal filetype=minfy
+		setlocal matchpairs=
+		setlocal noswapfile
+		setlocal nowrap
 
-	" hiligh
-	syn match minfyDirectory '^  .\+/$'
-	syn match minfyHidden '^  \..\+$'
-	syn match minfyNoItems '^  (no items)$'
-	syn match minfyBookmark '^.*\t'
-	hi! def link minfyDirectory Directory
-	hi! def link minfyHidden Comment
-	hi! def link minfyNoItems Comment
-	hi! def link minfyBookmark Directory
+		" hiligh
+		syn match minfyDirectory '^  .\+/$'
+		syn match minfyHidden '^  \..\+$'
+		syn match minfyNoItems '^  (no items)$'
+		syn match minfyBookmark '^.*\t'
+		hi! def link minfyDirectory Directory
+		hi! def link minfyHidden Comment
+		hi! def link minfyNoItems Comment
+		hi! def link minfyBookmark Directory
+	endif
 
 	call s:redraw()
 endfunction
@@ -249,7 +251,7 @@ function! s:file_open(item, open_cmd) abort
  	if isdirectory(a:item.path)
 		call s:init_minfy(a:item.path)
 	else
-	"	bdelete
+		call s:quit()
 		execute printf('keepalt %s %s', a:open_cmd, fnameescape(a:item.path))
 	endif
 endfunction
@@ -446,7 +448,7 @@ endfunction
 "---------------------------------------------------------------
 " bookmark_selected
 "---------------------------------------------------------------
-function! s:bookmark_selected() abort
+function! s:bookmark_selected(open_cmd, close_and_open) abort
 	" If Bookmark changed, it is save
 	if s:change_bookmark
 		call s:bookmark_save()
@@ -459,7 +461,13 @@ function! s:bookmark_selected() abort
 	unlet b:minfy
 
 	let item = s:get_item_info_from_path(path)
-	call s:file_open(item, 'edit')
+	call s:file_open(item, a:open_cmd)
+
+	if a:close_and_open && !item.is_dir
+		if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
+			execute 'bdelete! '.s:save_bufnr
+		endif
+	endif
 endfunction
 
 "---------------------------------------------------------------
@@ -494,22 +502,16 @@ endfunction
 "---------------------------------------------------------------
 function! s:bookmark_updown(updown) abort
 	let pos = getpos(".")
-	if a:updown == 'up'
-		if pos[1] <= 1
-			return
-		endif
-	else 
-		if pos[1] >= len(s:bookmark)
-			return
-		endif
+	let y = pos[1] - 1
+	let pos[1] += a:updown == 'up' ? -1 : 1
+	if pos[1] < 1 || pos[1] > len(s:bookmark)
+		return
 	endif
-
+	
 	setlocal modifiable
-	let temp1 = remove(s:bookmark, pos[1] - 1)
+	let temp1 = remove(s:bookmark, y)
 	let temp2 = getline(".")
 	del _
-
-	let pos[1] += a:updown == 'up' ? -1 : 1
 
 	call insert(s:bookmark, temp1, pos[1] - 1)
 	call append(pos[1] - 1, temp2)
@@ -541,8 +543,7 @@ function! s:bookmark_close() abort
 	endif
 
 	let filer = s:get_filer()
-	call s:redraw()
-	call s:set_keymap('FILER')
+	call s:open_minfy(filer)
 endfunction
 
 "---------------------------------------------------------------
