@@ -127,6 +127,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
+		nnoremap <buffer> <silent> r <nop>
 		nnoremap <buffer> <silent> u <nop>
 		nnoremap <buffer> <silent> d <nop>
 		nnoremap <buffer> <silent><DEL> <nop>
@@ -141,6 +142,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> a <nop>
+		nnoremap <buffer> <silent> r :<C-u>call <SID>bookmark_rename()<CR>
 		nnoremap <buffer> <silent> u :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent><DEL> :<C-u>call <SID>bookmark_delete()<CR>
@@ -495,6 +497,23 @@ function! s:bookmark_add() abort
 	call s:bookmark_save()
 
 	echo "\rAdd to bookmark. (".item.path.")"
+endfunction
+
+"---------------------------------------------------------------
+" bookmark_rename
+"---------------------------------------------------------------
+function! s:bookmark_rename() abort
+	let new_abbreviation = input('new abbreviation: ')
+	let new_abbreviation = new_abbreviation[:19]
+	if !len(new_abbreviation) | return | endif
+
+	let wk = split(s:bookmark[line(".") - 1], "\t")
+	let s:bookmark[line(".") - 1] = new_abbreviation."\t".wk[1]
+	setlocal modifiable
+	call setline(line("."), printf("%-20s\t%s", new_abbreviation, wk[1]))
+	setlocal nomodifiable
+
+	let s:change_bookmark = 1
 endfunction
 
 "---------------------------------------------------------------
