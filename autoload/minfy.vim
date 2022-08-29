@@ -430,7 +430,7 @@ function! s:bookmark_open() abort
 	" Move the cursor to the beginning of the file
 	normal! gg
 
-	let s:change_bookmark = 0
+	let s:bookmark_status = 1
 endfunction
 
 "---------------------------------------------------------------
@@ -452,7 +452,7 @@ endfunction
 "---------------------------------------------------------------
 function! s:bookmark_selected(open_cmd, close_and_open) abort
 	" If Bookmark changed, it is save
-	if s:change_bookmark
+	if s:bookmark_status == 2
 		call s:bookmark_save()
 	endif
 
@@ -487,6 +487,10 @@ function! s:bookmark_add() abort
 		return
 	endif
 
+	if !s:bookmark_status
+		let s:bookmark = s:bookmark_load()
+	endif
+
 	" Remove the new file name from the existing RF list (if already present)
 	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item.path')
 	
@@ -513,7 +517,7 @@ function! s:bookmark_rename() abort
 	call setline(line("."), printf("%-20s\t%s", new_abbreviation, wk[1]))
 	setlocal nomodifiable
 
-	let s:change_bookmark = 1
+	let s:bookmark_status = 2
 endfunction
 
 "---------------------------------------------------------------
@@ -537,7 +541,7 @@ function! s:bookmark_updown(updown) abort
 	call setpos(".", pos)
 	setlocal nomodifiable
 
-	let s:change_bookmark = 1
+	let s:bookmark_status = 2
 endfunction
 
 "---------------------------------------------------------------
@@ -550,14 +554,14 @@ function! s:bookmark_delete() abort
 	del _
 	setlocal nomodifiable
 
-	let s:change_bookmark = 1
+	let s:bookmark_status = 2
 endfunction
 
 "---------------------------------------------------------------
 " bookmark_close
 "---------------------------------------------------------------
 function! s:bookmark_close() abort
-	if s:change_bookmark
+	if s:bookmark_status == 2
 		call s:bookmark_save()
 	endif
 
@@ -573,6 +577,8 @@ function! minfy#start(...) abort
 	if bufname('%') =~ "^minfy://[0-9]*/.*$"
 		return
 	endif
+
+	let s:bookmark_status = 0
 
 	" get directory path. if nothing then current directory path
 	let path = get(a:000, 0, getcwd())
