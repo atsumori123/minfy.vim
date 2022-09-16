@@ -118,7 +118,6 @@ function! s:set_keymap(map_type) abort
 
 	if a:map_type == "FILER"
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>open_current('edit', 0)<CR>
-		nnoremap <buffer> <silent> <S-CR> :<C-u>call <SID>open_current('edit', 1)<CR>
 		nnoremap <buffer> <silent> l :<C-u>call <SID>open_current('edit', 0)<CR>
 		nnoremap <buffer> <silent> L :<C-u>call <SID>open_current('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>open_current('vsplit', 0)<CR>
@@ -128,12 +127,11 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> r <nop>
-		nnoremap <buffer> <silent> u <nop>
+		nnoremap <buffer> <silent> K <nop>
+		nnoremap <buffer> <silent> J <nop>
 		nnoremap <buffer> <silent> d <nop>
-		nnoremap <buffer> <silent><DEL> <nop>
 	else
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
-		nnoremap <buffer> <silent> <S-CR> :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
 		nnoremap <buffer> <silent> l :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
 		nnoremap <buffer> <silent> L :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>bookmark_selected('vsplit', 0)<CR>
@@ -143,9 +141,9 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> a <nop>
 		nnoremap <buffer> <silent> r :<C-u>call <SID>bookmark_rename()<CR>
-		nnoremap <buffer> <silent> u :<C-u>call <SID>bookmark_updown('up')<CR>
-		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_updown('down')<CR>
-		nnoremap <buffer> <silent><DEL> :<C-u>call <SID>bookmark_delete()<CR>
+		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
+		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
+		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_delete()<CR>
 	endif
 
 	let s:current_map_type = a:map_type
@@ -325,7 +323,13 @@ function! s:open_current(open_cmd, close_and_open) abort
 	" close and open (file open only)
 	if a:close_and_open && !item.is_dir
 		if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
-			execute 'bdelete! '.s:save_bufnr
+			if getbufinfo(s:save_bufnr)[0].changed
+				echohl WarningMsg
+				echomsg 'Unsaved changes in buffer '.s:save_bufnr.'.'
+				echohl None
+			else
+				execute 'bdelete '.s:save_bufnr
+			endif
 		endif
 	endif
 endfunction
@@ -368,7 +372,7 @@ function! s:quit() abort
 	" Try restoring alternate buffer
 	let last = bufnr('#')
 	if bufexists(last) && bufnr('%') != last
-		execute printf('buffer! %d', last) 
+		execute printf('buffer! %d', last)
 	else
 		enew
 	endif
@@ -467,7 +471,13 @@ function! s:bookmark_selected(open_cmd, close_and_open) abort
 
 	if a:close_and_open && !item.is_dir
 		if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
-			execute 'bdelete! '.s:save_bufnr
+			if getbufinfo(s:save_bufnr)[0].changed
+				echohl WarningMsg
+				echomsg 'Unsaved changes in buffer '.s:save_bufnr.'.'
+				echohl None
+			else
+				execute 'bdelete! '.s:save_bufnr
+			endif
 		endif
 	endif
 endfunction
@@ -493,10 +503,10 @@ function! s:bookmark_add() abort
 
 	" Remove the new file name from the existing RF list (if already present)
 	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item.path')
-	
+
 	" Add the new file list to the beginning of the updated old file list
 	call insert(s:bookmark, abbreviation."\t".item.path, 0)
-	
+
 	" Save bookmark file
 	call s:bookmark_save()
 
@@ -530,7 +540,7 @@ function! s:bookmark_updown(updown) abort
 	if pos[1] < 1 || pos[1] > len(s:bookmark)
 		return
 	endif
-	
+
 	setlocal modifiable
 	let temp1 = remove(s:bookmark, y)
 	let temp2 = getline(".")
