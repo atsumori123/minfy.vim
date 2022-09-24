@@ -2,120 +2,96 @@ let s:save_cpo = &cpoptions
 set cpoptions&vim
 
 "---------------------------------------------------------------
-" set_filer
+" filer manage function
 "---------------------------------------------------------------
-function! s:set_filer(filer) abort
-	let b:minfy = a:filer
+" initialize minfy
+function! s:filer_init(dir) abort
+	let b:minfy = {}
+	let b:minfy['current_dir'] = a:dir
+	let b:minfy['last_dir'] = ""
+	let b:minfy['show_hidden'] = 0
+	let b:minfy['items'] = []
+endfunction
+
+" move to parent directory
+function! s:filer_to_parent() abort
+	let b:minfy['last_dir'] = b:minfy['current_dir']
+	let b:minfy['current_dir'] = fnameescape(fnamemodify(b:minfy['last_dir'], ':h'))
+	let b:minfy['items'] = s:get_items_from_dir(b:minfy['current_dir'], b:minfy['show_hidden'])
+endfunction
+
+" move to child directory
+function! s:filer_to_child(dir) abort
+	let b:minfy['last_dir'] = b:minfy['current_dir']
+	let b:minfy['current_dir'] = a:dir
+	let b:minfy['items'] = s:get_items_from_dir(a:dir, b:minfy['show_hidden'])
+endfunction
+
+" set toggle hidden
+function! s:filer_toggle_hidden() abort
+	let b:minfy['show_hidden'] = !b:minfy['show_hidden']
+	let b:minfy['items'] = s:get_items_from_dir(b:minfy['current_dir'], b:minfy['show_hidden'])
+endfunction
+
+" get minfy param
+function! s:filer_get_param(key) abort
+	return b:minfy[a:key]
 endfunction
 
 "---------------------------------------------------------------
-" get_filer
+" name
 "---------------------------------------------------------------
-function! s:get_filer() abort
-	if !exists('b:minfy')
-		let b:minfy = {}
-		let b:minfy['cursor_paths'] = {}
-		let b:minfy['dir'] = ""
-		let b:minfy['show_hidden'] = 0
-		let b:minfy['items'] = []
+function! s:name(base, v) abort
+	let type = a:v['type']
+	if type ==# 'link' || type ==# 'junction'
+		if isdirectory(resolve(a:base .. a:v['name']))
+			let type = 'dir'
+		endif
+	elseif type ==# 'linkd'
+		let type = 'dir'
 	endif
-	return b:minfy
+	return a:v['name'] .. (type ==# 'dir' ? '/' : '')
 endfunction
 
 "---------------------------------------------------------------
-" get_full_path
+" compare
 "---------------------------------------------------------------
-function! s:get_full_path(path) abort
-	if a:path ==? '/'
-		return '/'
-	else
-		" Remove trailing path separator
-		let result = resolve(a:path)
-		return (match(result, '\(/\|\\\)$') >= 0) ? fnamemodify(result, ':h') : result
+function! s:compare(r1, r2) abort
+	let r1_is_dir = a:r1[-1:] ==# '/' ? 1 : 0
+	let r2_is_dir = a:r2[-1:] ==# '/' ? 1 : 0
+	if r1_is_dir != r2_is_dir
+		" Show directory in first
+		return r1_is_dir ? -1 : +1
 	endif
+	return char2nr(a:r1) - char2nr(a:r2)
 endfunction
 
 "---------------------------------------------------------------
 " get_items_from_dir
 "---------------------------------------------------------------
 function! s:get_items_from_dir(dir, includes_hidden_files) abort
-	" get items (xxxx/xxxx/xxxx/abc.txt)
-	let escaped_dir = fnameescape(fnamemodify(a:dir, ':p'))
-	let paths = glob(escaped_dir.'*', 1, 1)
-
-	" if include hidden, add hidden items to item list
-	if a:includes_hidden_files
-		let hidden_paths = glob(escaped_dir.'.*', 1, 1)
-		" Exclude '.' & '..'
-		call filter(hidden_paths, 'match(v:val, ''\(/\|\\\)\.\.\?$'') < 0')
-		call extend(paths, hidden_paths)
-	end
-
-	" get item info from path
-	let items =  map(copy(paths),'s:get_item_info_from_path(v:val)')
-	call sort(items, 's:compare')
-
-	let index = 0
-	for item in items
-		let item.index = index
-		let index += 1
-	endfor
-
-	return items
-endfunction
-
-"---------------------------------------------------------------
-" keep_buffer_singularity
-"---------------------------------------------------------------
-function! s:keep_buffer_singularity() abort
-	let related_win_ids = !exists('*win_findbuf') ? [] : win_findbuf(bufnr('%'))
-	if len(related_win_ids) > 1
-		" Detected multiple windows for single buffer:
-		" Duplicate the buffer to avoid unwanted sync between different windows
-		let pos = getcurpos()
-		let filer = s:get_filer()
-		enew
-		call s:open_minfy(filer)
-
-		" Restores cursor completely
-		call setpos('.', pos)
+	let items = map(readdirex(a:dir, '1', {'sort': 'none'}), {_, v -> s:name(a:dir, v)})
+	if !a:includes_hidden_files
+		call filter(items, 'v:val =~# "^[^.]"')
 	endif
+	call sort(items, function('s:compare'))
+	return items
 endfunction
 
 "---------------------------------------------------------------
 " get_cursor_item
 "---------------------------------------------------------------
-function! s:get_cursor_item(filer) abort
-	return get(a:filer.items, line('.') - 1, "")
-endfunction
-
-"---------------------------------------------------------------
-" generate_unique_bufname
-"---------------------------------------------------------------
-function! s:generate_unique_bufname(path) abort
-	let bufname = ''
-	let index = 0
-
-	while 1
-		" Add index to avoid duplicated buffer name
-		let bufname = fnameescape(printf('minfy://%d/%s', index, a:path))
-		if bufnr(bufname) < 0
-			break
-		endif
-		let index += 1
-	endwhile
-
-	return bufname
+function! s:get_cursor_item() abort
+	let item = s:filer_get_param("current_dir")
+	let item .= has('unix') ? '/' : '\'
+	let item .= get(s:filer_get_param("items"), line('.') - 1, "")
+	return substitute(item, "\[\\/\]$", "", "g")
 endfunction
 
 "---------------------------------------------------------------
 " set_keymap
 "---------------------------------------------------------------
 function! s:set_keymap(map_type) abort
-	if a:map_type == s:current_map_type
-		return
-	endif
-
 	if a:map_type == "FILER"
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>open_current('edit', 0)<CR>
 		nnoremap <buffer> <silent> l :<C-u>call <SID>open_current('edit', 0)<CR>
@@ -145,56 +121,21 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_delete()<CR>
 	endif
-
-	let s:current_map_type = a:map_type
 endfunction
 
 "---------------------------------------------------------------
-" open_minfy
+" draw_items
 "---------------------------------------------------------------
-function! s:open_minfy(filer) abort
-	" Give unique name to buffer to avoid unwanted sync between different windows
-	execute printf('silent keepalt file %s', s:generate_unique_bufname(a:filer.dir))
-
-	" Mapping
-	call s:set_keymap('FILER')
-
-	if &filetype != 'minfy'
-		setlocal bufhidden=delete
-		setlocal buftype=nowrite
-		setlocal filetype=minfy
-		setlocal matchpairs=
-		setlocal noswapfile
-		setlocal nowrap
-
-		" hiligh
-		syn match minfyDirectory '^  .\+/$'
-		syn match minfyHidden '^  \..\+$'
-		syn match minfyNoItems '^  (no items)$'
-		syn match minfyBookmark '^.*\t'
-		hi! def link minfyDirectory Directory
-		hi! def link minfyHidden Comment
-		hi! def link minfyNoItems Comment
-		hi! def link minfyBookmark Directory
-	endif
-
-	call s:redraw()
-endfunction
-
-"---------------------------------------------------------------
-" redraw
-"---------------------------------------------------------------
-function! s:redraw() abort
+function! s:draw_items() abort
 	setlocal modifiable
 
-	" Clear buffer before drawing items
-	silent keepjumps %delete _
-
-	let filer = s:get_filer()
-	if empty(filer.items)
+	" Draw items
+	silent! %delete _
+	let items = s:filer_get_param('items')
+	if empty(items)
 		let text = ['  (no items)']
 	else
-		let text = map(copy(filer.items), 'printf("  %s", v:val.basename.(v:val.is_dir ? "/" : ""))')
+		let text = map(copy(items), 'printf("  %s", v:val)')
 	endif
 	call setline(1, text)
 
@@ -202,177 +143,104 @@ function! s:redraw() abort
 	setlocal nomodified
 
 	call s:restore_cursor()
+	echohl Title | echomsg s:filer_get_param('current_dir') | echohl None
 endfunction
 
 "---------------------------------------------------------------
 " restore_cursor
 "---------------------------------------------------------------
 function! s:restore_cursor() abort
-	let filer = s:get_filer()
-	let cursor_path = get(filer.cursor_paths, filer.dir, '')
-
-	let lnum = 1
-	if !empty(cursor_path)
-		let items = filter(copy(filer.items), 'v:val.path ==# cursor_path')
-		if !empty(items)
-			let lnum = index(filer.items, items[0]) + 1
-		endif
-	endif
+	let last_dir = s:filer_get_param("last_dir")
+    let last_dir = last_dir ==# "/" ? "/" : split(last_dir, "\[\\/\]")[-1]."/"
+	let idx = index(s:filer_get_param('items'), last_dir)
+	let lnum = idx == -1 ? 1 : idx + 1
 	call cursor([lnum, 1, 0, 1])
-endfunction
-
-"--------------
-"-------------------------------------------------
-" save_cursor
-"---------------------------------------------------------------
-function! s:save_cursor(item) abort
-	if empty(a:item) | return | endif
-	let filer = s:get_filer()
-	let filer.cursor_paths[filer.dir] = a:item.path
-	call s:set_filer(filer)
-endfunction
-
-"---------------------------------------------------------------
-" compare
-"---------------------------------------------------------------
-function! s:compare(r1, r2) abort
-	if a:r1.is_dir != a:r2.is_dir
-		" Show directory in first
-		return a:r1.is_dir ? -1 : +1
-	endif
-
-	return char2nr(a:r1.basename) - char2nr(a:r2.basename)
 endfunction
 
 "---------------------------------------------------------------
 " file_open
 "---------------------------------------------------------------
-function! s:file_open(item, open_cmd) abort
- 	if isdirectory(a:item.path)
-		call s:init_minfy(a:item.path)
+function! s:file_open(path, open_cmd, close_and_open) abort
+	if isdirectory(a:path)
+		call s:filer_to_child(a:path)
+		call s:draw_items()
 	else
 		call s:quit()
-		execute printf('keepalt %s %s', a:open_cmd, fnameescape(a:item.path))
-	endif
-endfunction
-
-"---------------------------------------------------------------
-" get_item_info_from_path
-"---------------------------------------------------------------
-function! s:get_item_info_from_path(path) abort
-	let item = {}
-	let item.index = -1
-	let item.path = s:get_full_path(a:path)
-	let item.is_dir = isdirectory(a:path)
-	let item.basename = fnamemodify(a:path, isdirectory(a:path) ? ':t' : ':p:t')
-
-	return item
-endfunction
-
-"---------------------------------------------------------------
-" init_minfy
-"---------------------------------------------------------------
-function! s:init_minfy(path) abort
-	" directory chek. if not exist, then terminate
-	let path = fnamemodify(a:path, ':p')
-	if !isdirectory(path)
-		echohl Error | echomsg "E36: Directory ".path." doesn't exist" | echohl None
-		return
-	endif
-
-	"minfy buffer clean up
-	let all_bufnrs = range(1, bufnr('$'))
-	let del_bufnrs = filter(all_bufnrs, 'bufexists(v:val) && !buflisted(v:val) && !bufloaded(v:val)')
-	let del_bufnrs = filter(del_bufnrs, 'bufname(v:val) =~ "^minfy://[0-9]*/.*$"')
-	for bufnr in del_bufnrs
-		execute printf('silent bwipeout %d', bufnr)
-	endfor
-
-	" if minfy buffer not exist, then create buffer
-	if bufname('%') !~ "^minfy://[0-9]*/.*$"
-		enew
-	endif
-
-	" create filer
-	let filer = s:get_filer()
-	let filer['dir'] = s:get_full_path(path)
-	let filer['items'] = s:get_items_from_dir(filer.dir, filer.show_hidden)
-	call s:set_filer(filer)
-
-	" open minfy
-	call s:open_minfy(filer)
-endfunction
-
-"---------------------------------------------------------------
-" open_current
-"---------------------------------------------------------------
-function! s:open_current(open_cmd, close_and_open) abort
-	call s:keep_buffer_singularity()
-
-	" get cursor item
-	let filer = s:get_filer()
-	let item = s:get_cursor_item(filer)
-	if empty(item) | return | endif
-
-	" save cursor position
-	call s:save_cursor(item)
-
-	" next directory open or file open
-	call s:file_open(item, a:open_cmd)
-
-	" close and open (file open only)
-	if a:close_and_open && !item.is_dir
-		if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
-			if getbufinfo(s:save_bufnr)[0].changed
-				echohl WarningMsg
-				echomsg 'Unsaved changes in buffer '.s:save_bufnr.'.'
-				echohl None
-			else
-				execute 'bdelete '.s:save_bufnr
+		execute printf('%s %s', a:open_cmd, fnameescape(a:path))
+		if a:close_and_open
+			if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
+				if getbufinfo(s:save_bufnr)[0].changed
+					echohl WarningMsg
+					echomsg 'Unsaved changes in buffer '.s:save_bufnr.'.'
+					echohl None
+				else
+					execute 'bdelete! '.s:save_bufnr
+				endif
 			endif
 		endif
 	endif
 endfunction
 
 "---------------------------------------------------------------
+" init_minfy
+"---------------------------------------------------------------
+function! s:init_minfy(dir) abort
+	enew
+	execute printf('silent keepalt file %s', '-minfy-')
+	setlocal modifiable
+	setlocal filetype=minfy
+	setlocal buftype=nofile
+	setlocal bufhidden=delete
+	setlocal noswapfile
+	setlocal nowrap
+	setlocal cursorline
+
+	"  keymap
+	call s:set_keymap('FILER')
+
+	" hiligh
+	syn match minfyDirectory '^  .\+/$'
+	syn match minfyHidden '^  \..\+$'
+	syn match minfyNoItems '^  (no items)$'
+	syn match minfyBookmark '^.*\t'
+	hi! def link minfyDirectory Directory
+	hi! def link minfyHidden Comment
+	hi! def link minfyNoItems Comment
+	hi! def link minfyBookmark Directory
+
+	" create first filer
+	call s:filer_init(a:dir)
+	call s:filer_to_child(a:dir)
+
+	" draw items to buffer
+	call s:draw_items()
+endfunction
+
+"---------------------------------------------------------------
+" open_current
+"---------------------------------------------------------------
+function! s:open_current(open_cmd, close_and_open) abort
+	" next directory open or file open
+	let item_path = s:get_cursor_item()
+	if empty(item_path) | return | endif
+	call s:file_open(item_path, a:open_cmd, a:close_and_open)
+endfunction
+
+"---------------------------------------------------------------
 " open_parent
 "---------------------------------------------------------------
 function! s:open_parent() abort
-	call s:keep_buffer_singularity()
-
-	let filer = s:get_filer()
-	let parent_dir = fnameescape(fnamemodify(filer.dir, ':h'))
-
-	" save cursor position
-	let cursor_item = s:get_cursor_item(filer)
-	call s:save_cursor(cursor_item)
-
-	" directory exist check, if not exist, then head directory
-	let new_dir = isdirectory(expand(parent_dir)) ?
-					\ expand(parent_dir) :
-					\ fnamemodify(expand(parent_dir), ':h')
-
-	" get item of parent directory
-	let new_item = s:get_item_info_from_path(new_dir)
-
-	" next directory open or file open
-	call s:file_open(new_item, '')
-
-	" Move cursor to previous current directory
-	let prev_dir_item =s:get_item_info_from_path(filer.dir)
-	call s:save_cursor(prev_dir_item)
+	call s:filer_to_parent()
+	call s:draw_items()
 endfunction
 
 "---------------------------------------------------------------
 " quit
 "---------------------------------------------------------------
 function! s:quit() abort
-	call s:keep_buffer_singularity()
-
 	" Try restoring alternate buffer
-	let last = bufnr('#')
-	if bufexists(last) && bufnr('%') != last
-		execute printf('buffer! %d', last)
+	if bufexists(s:save_bufnr) && bufnr('%') != s:save_bufnr
+		execute printf('buffer! %d', s:save_bufnr)
 	else
 		enew
 	endif
@@ -382,35 +250,14 @@ endfunction
 " toggle_hidden
 "---------------------------------------------------------------
 function! s:toggle_hidden() abort
-	call s:keep_buffer_singularity()
-
-	" get cursor itemm
-	let filer = s:get_filer()
-	let item = s:get_cursor_item(filer)
-
-	" save cursor position
-	call s:save_cursor(item)
-
-	" toggle hidden setting, and get item
-	let filer.show_hidden = !filer.show_hidden
-	let filer.items = s:get_items_from_dir(filer.dir, filer.show_hidden)
-	call s:set_filer(filer)
-
-	call s:redraw()
+	call s:filer_toggle_hidden()
+	call s:draw_items()
 endfunction
 
 "---------------------------------------------------------------
 " bookmark_open
 "---------------------------------------------------------------
 function! s:bookmark_open() abort
-	" Give unique name to buffer to avoid unwanted sync between different windows
-	execute printf('silent keepalt file %s', s:generate_unique_bufname('bookmark'))
-
-	" save cursor position
-	let filer = s:get_filer()
-	let item = s:get_cursor_item(filer)
-	call s:save_cursor(item)
-
 	" Mapping
 	call s:set_keymap('BOOKMARK')
 
@@ -460,37 +307,21 @@ function! s:bookmark_selected(open_cmd, close_and_open) abort
 		call s:bookmark_save()
 	endif
 
-	" Get selected line
+	" open selected item
 	let path = substitute(getline("."), ".*\t", "", "")
-
-	" create filer
-	unlet b:minfy
-
-	let item = s:get_item_info_from_path(path)
-	call s:file_open(item, a:open_cmd)
-
-	if a:close_and_open && !item.is_dir
-		if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
-			if getbufinfo(s:save_bufnr)[0].changed
-				echohl WarningMsg
-				echomsg 'Unsaved changes in buffer '.s:save_bufnr.'.'
-				echohl None
-			else
-				execute 'bdelete! '.s:save_bufnr
-			endif
-		endif
+	if isdirectory(path)
+		call s:set_keymap('FILER')
 	endif
+	call s:file_open(path, a:open_cmd, a:close_and_open)
 endfunction
 
 "---------------------------------------------------------------
 " bookmark_add
 "---------------------------------------------------------------
 function! s:bookmark_add() abort
-	let filer = s:get_filer()
-	let item = s:get_cursor_item(filer)
-	if empty(item.path) | return | endif
+	let item = s:get_cursor_item()
+	if empty(item) | return | endif
 
-	echo item.path
 	let abbreviation = input('abbreviation: ')
 	let abbreviation = abbreviation[:19]
 	if !len(abbreviation)
@@ -502,15 +333,15 @@ function! s:bookmark_add() abort
 	endif
 
 	" Remove the new file name from the existing RF list (if already present)
-	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item.path')
+	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item')
 
 	" Add the new file list to the beginning of the updated old file list
-	call insert(s:bookmark, abbreviation."\t".item.path, 0)
+	call insert(s:bookmark, abbreviation."\t".item, 0)
 
 	" Save bookmark file
 	call s:bookmark_save()
 
-	echo "\rAdd to bookmark. (".item.path.")"
+	echo "\rAdd to bookmark. (".item.")"
 endfunction
 
 "---------------------------------------------------------------
@@ -534,10 +365,10 @@ endfunction
 " bookmark_updown
 "---------------------------------------------------------------
 function! s:bookmark_updown(updown) abort
-	let pos = getpos(".")
-	let y = pos[1] - 1
-	let pos[1] += a:updown == 'up' ? -1 : 1
-	if pos[1] < 1 || pos[1] > len(s:bookmark)
+	let lnum = line(".")
+	let y = lnum - 1
+	let lnum += a:updown == 'up' ? -1 : 1
+	if lnum < 1 || lnum > len(s:bookmark)
 		return
 	endif
 
@@ -546,9 +377,9 @@ function! s:bookmark_updown(updown) abort
 	let temp2 = getline(".")
 	del _
 
-	call insert(s:bookmark, temp1, pos[1] - 1)
-	call append(pos[1] - 1, temp2)
-	call setpos(".", pos)
+	call insert(s:bookmark, temp1, lnum - 1)
+	call append(lnum - 1, temp2)
+	call cursor([lnum, 1, 0, 1])
 	setlocal nomodifiable
 
 	let s:bookmark_status = 2
@@ -558,8 +389,8 @@ endfunction
 " bookmark_delete
 "---------------------------------------------------------------
 function! s:bookmark_delete() abort
-	let pos = getpos(".")
-	call remove(s:bookmark, pos[1] - 1)
+	let lnum = line(".")
+	call remove(s:bookmark, lnum - 1)
 	setlocal modifiable
 	del _
 	setlocal nomodifiable
@@ -575,29 +406,30 @@ function! s:bookmark_close() abort
 		call s:bookmark_save()
 	endif
 
-	let filer = s:get_filer()
-	call s:open_minfy(filer)
+	call s:set_keymap('FILER')
+	call s:draw_items()
 endfunction
 
 "---------------------------------------------------------------
 " minfy#start
 "---------------------------------------------------------------
 function! minfy#start(...) abort
-	" duplicate open is nop
-	if bufname('%') =~ "^minfy://[0-9]*/.*$"
+	" get directory path. if nothing then current directory path
+	let dir = resolve(get(a:000, 0, getcwd()))
+	if !isdirectory(dir)
+		echohl Error | echomsg "E01: Directory ".dir."doesn't exist" | echohl None
 		return
 	endif
 
-	let s:bookmark_status = 0
+	" if already minfy exist, return
+	if bufwinnr("-minfy-") != -1
+		echohl Error | echomsg "E02: Already minfy buffer exist" | echohl None
+		return
+	endif
 
-	" get directory path. if nothing then current directory path
-	let path = get(a:000, 0, getcwd())
-
-	let s:current_map_type = 'UNDEF'
-
- 	" save current buffer number. use with 'close and open' function
 	let s:save_bufnr = bufnr("%")
-	call s:init_minfy(path)
+	let s:bookmark_status = 0
+	call s:init_minfy(dir)
 endfunction
 
 
