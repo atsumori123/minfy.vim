@@ -397,6 +397,9 @@ endfunction
 " bookmark_delete
 "---------------------------------------------------------------
 function! s:bookmark_delete() abort
+	let key = input("Can I delete ? [y/n] ")
+	if key != 'y' | return | endif
+
 	let lnum = line(".")
 	call remove(s:bookmark, lnum - 1)
 	setlocal modifiable
