@@ -106,7 +106,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
-		nnoremap <buffer> <silent> r <nop>
+		nnoremap <buffer> <silent> e <nop>
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
 		nnoremap <buffer> <silent> d <nop>
@@ -120,7 +120,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> a <nop>
-		nnoremap <buffer> <silent> r :<C-u>call <SID>bookmark_rename()<CR>
+		nnoremap <buffer> <silent> e :<C-u>call <SID>bookmark_edit()<CR>
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_delete()<CR>
@@ -349,17 +349,21 @@ function! s:bookmark_add() abort
 endfunction
 
 "---------------------------------------------------------------
-" bookmark_rename
+" bookmark_edit
 "---------------------------------------------------------------
-function! s:bookmark_rename() abort
-	let new_abbreviation = input('new abbreviation: ')
+function! s:bookmark_edit() abort
+	let wk = split(s:bookmark[line(".") - 1], "\t")
+	let new_path = input('new path: ', wk[1], 'dir')
+	let new_path = substitute(new_path, '[/|\\]$', "", "")
+	if !len(new_path) | return | endif
+
+	let new_abbreviation = input('new abbreviation: ', wk[0])
 	let new_abbreviation = new_abbreviation[:19]
 	if !len(new_abbreviation) | return | endif
 
-	let wk = split(s:bookmark[line(".") - 1], "\t")
-	let s:bookmark[line(".") - 1] = new_abbreviation."\t".wk[1]
+	let s:bookmark[line(".") - 1] = new_abbreviation."\t".new_path
 	setlocal modifiable
-	call setline(line("."), printf("%-20s\t%s", new_abbreviation, wk[1]))
+	call setline(line("."), printf("%-20s\t%s", new_abbreviation, new_path))
 	setlocal nomodifiable
 
 	let s:bookmark_status = 2
