@@ -70,7 +70,11 @@ endfunction
 " get_items_from_dir
 "---------------------------------------------------------------
 function! s:get_items_from_dir(dir, includes_hidden_files) abort
-	let items = map(readdirex(a:dir, '1', {'sort': 'none'}), {_, v -> s:name(a:dir, v)})
+	if exists('*readdirex')
+		let items = map(readdirex(a:dir, '1', {'sort': 'none'}), {_, v -> s:name(a:dir, v)})
+	else
+		let items = map(readdir(a:dir, '1'), {_, v -> s:name(a:dir, {'type': getftype(a:dir .. '/' .. v), 'name': v})})
+	endif
 	if !a:includes_hidden_files
 		call filter(items, 'v:val =~# "^[^.]"')
 	endif
