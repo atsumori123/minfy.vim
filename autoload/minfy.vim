@@ -102,6 +102,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> L :<C-u>call <SID>open_current('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>open_current('vsplit', 0)<CR>
 		nnoremap <buffer> <silent> . :<C-u>call <SID>toggle_hidden()<CR>
+		nnoremap <buffer> <silent> f :<C-u>call <SID>skip_cursor()<CR>
 		nnoremap <buffer> <silent> b :<C-u>call <SID>bookmark_open()<CR>
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
@@ -155,10 +156,27 @@ endfunction
 "---------------------------------------------------------------
 function! s:restore_cursor() abort
 	let last_dir = s:filer_get_param("last_dir")
-    let last_dir = last_dir ==# "/" ? "/" : split(last_dir, "\[\\/\]")[-1]."/"
+	let last_dir = last_dir ==# "/" ? "/" : split(last_dir, "\[\\/\]")[-1]."/"
 	let idx = index(s:filer_get_param('items'), last_dir)
 	let lnum = idx == -1 ? 1 : idx + 1
 	call cursor([lnum, 1, 0, 1])
+endfunction
+
+"---------------------------------------------------------------
+" skip_cursor
+"---------------------------------------------------------------
+function! s:skip_cursor() abort
+	let key = getcharstr()
+	if key == "" | return | endif
+
+	let items = s:bookmark_status ? s:bookmark : s:filer_get_param('items')
+	let n = line(".")
+	for i in range(1, len(items))
+		if n >= len(items) | let n = 0 | endif
+		if items[n][0] ==# key | break | endif
+		let n += 1
+	endfor
+	call cursor([n+1, 1, 0, 1])
 endfunction
 
 "---------------------------------------------------------------
@@ -332,9 +350,7 @@ function! s:bookmark_add() abort
 		return
 	endif
 
-	if !s:bookmark_status
-		let s:bookmark = s:bookmark_load()
-	endif
+	let s:bookmark = s:bookmark_load()
 
 	" Remove the new file name from the existing RF list (if already present)
 	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item')
@@ -419,6 +435,8 @@ function! s:bookmark_close() abort
 
 	call s:set_keymap('FILER')
 	call s:draw_items()
+
+	let s:bookmark_status = 0
 endfunction
 
 "---------------------------------------------------------------
