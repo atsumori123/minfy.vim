@@ -173,7 +173,7 @@ function! s:skip_cursor() abort
 	let n = line(".")
 	for i in range(1, len(items))
 		if n >= len(items) | let n = 0 | endif
-		if items[n][0] ==# key | break | endif
+		if items[n][0] ==? key | break | endif
 		let n += 1
 	endfor
 	call cursor([n+1, 1, 0, 1])
@@ -335,6 +335,7 @@ function! s:bookmark_selected(open_cmd, close_and_open) abort
 		call s:set_keymap('FILER')
 	endif
 	call s:file_open(path, a:open_cmd, a:close_and_open)
+	let s:bookmark_status = 0
 endfunction
 
 "---------------------------------------------------------------
