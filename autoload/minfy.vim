@@ -87,8 +87,8 @@ endfunction
 "---------------------------------------------------------------
 function! s:get_cursor_item() abort
 	let item = s:filer_get_param("current_dir")
-	let item .= has('unix') ? '/' : '\'
-	let item .= get(s:filer_get_param("items"), line('.') - 1, "")
+	let item .= len(item) > 1 ? has('unix') ? '/' : '\' : ''
+	let item .= get(s:filer_get_param("items"), line('.') - 2, "")
 	return substitute(item, "\[\\/\]$", "", "g")
 endfunction
 
@@ -142,13 +142,17 @@ function! s:draw_items() abort
 	else
 		let text = map(copy(items), 'printf("  %s", v:val)')
 	endif
-	call setline(1, text)
+
+	let path = s:filer_get_param('current_dir')
+	let dellen = strlen(path) - (&columns - 5)
+	if dellen > 0 | let path = "..".path[dellen:] | endif
+	call setline(1, path)
+	call setline(2, text)
 
 	setlocal nomodifiable
 	setlocal nomodified
 
 	call s:restore_cursor()
-	echohl Title | echomsg s:filer_get_param('current_dir') | echohl None
 endfunction
 
 "---------------------------------------------------------------
@@ -158,7 +162,7 @@ function! s:restore_cursor() abort
 	let last_dir = s:filer_get_param("last_dir")
 	let last_dir = last_dir ==# "/" ? "/" : split(last_dir, "\[\\/\]")[-1]."/"
 	let idx = index(s:filer_get_param('items'), last_dir)
-	let lnum = idx == -1 ? 1 : idx + 1
+	let lnum = idx == -1 ? 2 : idx + 2
 	call cursor([lnum, 1, 0, 1])
 endfunction
 
@@ -176,7 +180,8 @@ function! s:skip_cursor() abort
 		if items[n][0] ==? key | break | endif
 		let n += 1
 	endfor
-	call cursor([n+1, 1, 0, 1])
+	let ofs = n + (s:bookmark_status ? 1 : 2)
+	call cursor([ofs, 1, 0, 1])
 endfunction
 
 "---------------------------------------------------------------
@@ -225,10 +230,13 @@ function! s:init_minfy(dir) abort
 	syn match minfyHidden '^  \..\+$'
 	syn match minfyNoItems '^  (no items)$'
 	syn match minfyBookmark '^.*\t'
+	syn match minfyCurrentPath '^[^ ].*'
 	hi! def link minfyDirectory Directory
 	hi! def link minfyHidden Comment
 	hi! def link minfyNoItems Comment
 	hi! def link minfyBookmark Directory
+"	hi! def link minfyCurrentPath Title
+	hi! def link minfyCurrentPath Identifier
 
 	" create first filer
 	call s:filer_init(a:dir)
@@ -243,6 +251,7 @@ endfunction
 "---------------------------------------------------------------
 function! s:open_current(open_cmd, close_and_open) abort
 	" next directory open or file open
+	if line('.') == 1 | return | endif
 	let item_path = s:get_cursor_item()
 	if empty(item_path) | return | endif
 	call s:file_open(item_path, a:open_cmd, a:close_and_open)
@@ -288,7 +297,7 @@ function! s:bookmark_open() abort
 	let output = []
 	for bk in s:bookmark
 		let wk = split(bk, "\t")
-		call add(output, printf("%-20s\t%s", wk[0], wk[1]))
+		call add(output, printf("  %-20s\t%s", wk[0], wk[1]))
 	endfor
 
 	" Delete the contents of the buffer to the black-hole register
@@ -301,7 +310,8 @@ function! s:bookmark_open() abort
 	setlocal nomodifiable
 
 	" Move the cursor to the beginning of the file
-	normal! gg
+"	normal! gg
+	call cursor([1, 1, 0, 1])
 
 	let s:bookmark_status = 1
 endfunction
