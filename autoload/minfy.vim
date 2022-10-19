@@ -86,8 +86,9 @@ endfunction
 " get_cursor_item
 "---------------------------------------------------------------
 function! s:get_cursor_item() abort
+	let sep = has('unix') ? '/' : '\'
 	let item = s:filer_get_param("current_dir")
-	let item .= len(item) > 1 ? has('unix') ? '/' : '\' : ''
+	let item .= item =~ escape(sep, '\').'$' ? '' : sep
 	let item .= get(s:filer_get_param("items"), line('.') - 2, "")
 	return substitute(item, "\[\\/\]$", "", "g")
 endfunction
