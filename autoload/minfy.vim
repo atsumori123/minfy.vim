@@ -145,7 +145,7 @@ function! s:draw_items() abort
 	endif
 
 	let path = s:filer_get_param('current_dir')
-	let dellen = strlen(path) - (&columns - 5)
+	let dellen = strlen(path) - (&columns - 10)
 	if dellen > 0 | let path = "..".path[dellen:] | endif
 	call setline(1, path)
 	call setline(2, text)
@@ -171,7 +171,7 @@ endfunction
 " skip_cursor
 "---------------------------------------------------------------
 function! s:skip_cursor() abort
-	let key = getcharstr()
+	let key = nr2char(getchar())
 	if key == "" | return | endif
 
 	let items = s:bookmark_status ? s:bookmark : s:filer_get_param('items')
