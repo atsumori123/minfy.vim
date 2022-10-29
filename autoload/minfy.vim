@@ -304,15 +304,15 @@ function! s:bookmark_open() abort
 	" Delete the contents of the buffer to the black-hole register
 	setlocal modifiable
 	silent! %delete _
-	silent! 0put = output
+	call setline(1, "bookmarks")
+	call setline(2, output)
 
 	" Delete the empty line at the end of the buffer
 	silent! $delete _
 	setlocal nomodifiable
 
 	" Move the cursor to the beginning of the file
-"	normal! gg
-	call cursor([1, 1, 0, 1])
+	call cursor([2, 1, 0, 1])
 
 	let s:bookmark_status = 1
 endfunction
@@ -380,7 +380,7 @@ endfunction
 " bookmark_edit
 "---------------------------------------------------------------
 function! s:bookmark_edit() abort
-	let wk = split(s:bookmark[line(".") - 1], "\t")
+	let wk = split(s:bookmark[line(".") - 2], "\t")
 	let new_path = input('new path: ', wk[1], 'dir')
 	let new_path = substitute(new_path, '[/|\\]$', "", "")
 	if !len(new_path) | return | endif
@@ -391,7 +391,7 @@ function! s:bookmark_edit() abort
 
 	let s:bookmark[line(".") - 1] = new_abbreviation."\t".new_path
 	setlocal modifiable
-	call setline(line("."), printf("%-20s\t%s", new_abbreviation, new_path))
+	call setline(line("."), printf("  %-20s\t%s", new_abbreviation, new_path))
 	setlocal nomodifiable
 
 	let s:bookmark_status = 2
@@ -402,20 +402,19 @@ endfunction
 "---------------------------------------------------------------
 function! s:bookmark_updown(updown) abort
 	let lnum = line(".")
-	let y = lnum - 1
-	let lnum += a:updown == 'up' ? -1 : 1
-	if lnum < 1 || lnum > len(s:bookmark)
+	let next = lnum + (a:updown == 'up' ? -1 : 1)
+	if next < 2 || next > len(s:bookmark)
 		return
 	endif
 
 	setlocal modifiable
-	let temp1 = remove(s:bookmark, y)
+	let temp1 = remove(s:bookmark, lnum - 2)
 	let temp2 = getline(".")
 	del _
 
-	call insert(s:bookmark, temp1, lnum - 1)
-	call append(lnum - 1, temp2)
-	call cursor([lnum, 1, 0, 1])
+	call insert(s:bookmark, temp1, next - 2)
+	call append(next - 1, temp2)
+	call cursor([next, 1, 0, 1])
 	setlocal nomodifiable
 
 	let s:bookmark_status = 2
@@ -429,7 +428,7 @@ function! s:bookmark_delete() abort
 	if key != 'y' | return | endif
 
 	let lnum = line(".")
-	call remove(s:bookmark, lnum - 1)
+	call remove(s:bookmark, lnum - 2)
 	setlocal modifiable
 	del _
 	setlocal nomodifiable
