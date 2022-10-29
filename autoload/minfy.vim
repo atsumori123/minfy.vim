@@ -175,14 +175,13 @@ function! s:skip_cursor() abort
 	if key == "" | return | endif
 
 	let items = s:bookmark_status ? s:bookmark : s:filer_get_param('items')
-	let n = line(".")
+	let n = line(".") - 1
 	for i in range(1, len(items))
 		if n >= len(items) | let n = 0 | endif
 		if items[n][0] ==? key | break | endif
 		let n += 1
 	endfor
-	let ofs = n + (s:bookmark_status ? 1 : 2)
-	call cursor([ofs, 1, 0, 1])
+	call cursor([n + 2, 1, 0, 1])
 endfunction
 
 "---------------------------------------------------------------
