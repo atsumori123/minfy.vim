@@ -334,6 +334,8 @@ endfunction
 " bookmark_selected
 "---------------------------------------------------------------
 function! s:bookmark_selected(open_cmd, close_and_open) abort
+	if line('.') == 1 | return | endif
+
 	" If Bookmark changed, it is save
 	if s:bookmark_status == 2
 		call s:bookmark_save()
@@ -379,6 +381,8 @@ endfunction
 " bookmark_edit
 "---------------------------------------------------------------
 function! s:bookmark_edit() abort
+	if line('.') == 1 | return | endif
+
 	let wk = split(s:bookmark[line(".") - 2], "\t")
 	let new_path = input('new path: ', wk[1], 'dir')
 	let new_path = substitute(new_path, '[/|\\]$', "", "")
@@ -402,7 +406,7 @@ endfunction
 function! s:bookmark_updown(updown) abort
 	let lnum = line(".")
 	let next = lnum + (a:updown == 'up' ? -1 : 1)
-	if next < 2 || next > len(s:bookmark)
+	if lnum == 1 || next < 2 || next > len(s:bookmark)
 		return
 	endif
 
@@ -423,6 +427,8 @@ endfunction
 " bookmark_delete
 "---------------------------------------------------------------
 function! s:bookmark_delete() abort
+	if line('.') == 1 | return | endif
+
 	let key = input("Can I delete ? [y/n] ")
 	if key != 'y' | return | endif
 
