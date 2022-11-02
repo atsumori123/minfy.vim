@@ -392,7 +392,7 @@ function! s:bookmark_edit() abort
 	let new_abbreviation = new_abbreviation[:19]
 	if !len(new_abbreviation) | return | endif
 
-	let s:bookmark[line(".") - 1] = new_abbreviation."\t".new_path
+	let s:bookmark[line(".") - 2] = new_abbreviation."\t".new_path
 	setlocal modifiable
 	call setline(line("."), printf("  %-20s\t%s", new_abbreviation, new_path))
 	setlocal nomodifiable
