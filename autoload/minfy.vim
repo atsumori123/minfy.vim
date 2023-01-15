@@ -175,7 +175,7 @@ function! s:skip_cursor() abort
 	let first_match = -1
 	let len = line('$')
 	let char = nr2char(getchar())
-	let match_char = char == "" ? "!" : char
+	let match_char = char == "" ? "!" : escape(char, '^$.*[]/~\')
 	let replace_char = char == "" ? " " : "!"
 
 	setlocal modifiable
