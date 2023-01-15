@@ -118,6 +118,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> L :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>bookmark_selected('vsplit', 0)<CR>
 		nnoremap <buffer> <silent> . <nop>
+		nnoremap <buffer> <silent> f <nop>
 		nnoremap <buffer> <silent> b <nop>
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
@@ -132,7 +133,8 @@ endfunction
 "---------------------------------------------------------------
 " draw_items
 "---------------------------------------------------------------
-function! s:draw_items() abort
+function! s:draw_items(...) abort
+	let match_char = len(a:000) ? a:000[0] : ""
 	setlocal modifiable
 
 	" Draw items
@@ -141,7 +143,7 @@ function! s:draw_items() abort
 	if empty(items)
 		let text = ['  (no items)']
 	else
-		let text = map(copy(items), 'printf("  %s", v:val)')
+		let text = map(copy(items), 'printf("%s %s", v:val[0] == match_char ? "!" : " ", v:val)')
 	endif
 
 	let path = s:filer_get_param('current_dir')
@@ -171,17 +173,20 @@ endfunction
 " skip_cursor
 "---------------------------------------------------------------
 function! s:skip_cursor() abort
-	let key = nr2char(getchar())
-	if key == "" | return | endif
+	let match_char = nr2char(getchar())
+	call s:draw_items(match_char)
+	if match_char == "" | return | endif
 
 	let items = s:bookmark_status ? s:bookmark : s:filer_get_param('items')
 	let n = line(".") - 1
 	for i in range(1, len(items))
 		if n >= len(items) | let n = 0 | endif
-		if items[n][0] ==? key | break | endif
+		if items[n][0] ==? match_char
+			call cursor([n + 2, 1, 0, 1])
+		   	break
+		endif
 		let n += 1
 	endfor
-	call cursor([n + 2, 1, 0, 1])
 endfunction
 
 "---------------------------------------------------------------
@@ -230,12 +235,13 @@ function! s:init_minfy(dir) abort
 	syn match minfyHidden '^  \..\+$'
 	syn match minfyNoItems '^  (no items)$'
 	syn match minfyBookmark '^.*\t'
-	syn match minfyCurrentPath '^[^ ].*'
+	syn match minfyCurrentPath '^[^ !].*'
+	syn match minfyMatch '^!.*'
 	hi! def link minfyDirectory Directory
 	hi! def link minfyHidden Comment
 	hi! def link minfyNoItems Comment
 	hi! def link minfyBookmark Directory
-"	hi! def link minfyCurrentPath Title
+	hi! def link minfyMatch Title
 	hi! def link minfyCurrentPath Identifier
 
 	" create first filer
