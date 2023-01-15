@@ -118,7 +118,6 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> L :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>bookmark_selected('vsplit', 0)<CR>
 		nnoremap <buffer> <silent> . <nop>
-		nnoremap <buffer> <silent> f <nop>
 		nnoremap <buffer> <silent> b <nop>
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
@@ -173,20 +172,32 @@ endfunction
 " skip_cursor
 "---------------------------------------------------------------
 function! s:skip_cursor() abort
-	let match_char = nr2char(getchar())
-	call s:draw_items(match_char)
-	if match_char == "" | return | endif
+	let first_match = -1
+	let len = line('$')
+	let char = nr2char(getchar())
+	let match_char = char == "" ? "!" : char
+	let replace_char = char == "" ? " " : "!"
 
-	let items = s:bookmark_status ? s:bookmark : s:filer_get_param('items')
-	let n = line(".") - 1
-	for i in range(1, len(items))
-		if n >= len(items) | let n = 0 | endif
-		if items[n][0] ==? match_char
-			call cursor([n + 2, 1, 0, 1])
-		   	break
+	setlocal modifiable
+
+	let n = line(".") + 1
+	for i in range(1, len)
+		if n > len | let n = 1 | endif
+		let str = getline(n)
+		if str =~ "^. ".match_char
+			call setline(n, replace_char.str[1:])
+			if first_match == -1 | let first_match = n | endif
+		elseif str =~ "^!"
+			call setline(n, " ".str[1:])
 		endif
 		let n += 1
 	endfor
+
+	setlocal nomodifiable
+
+	if char != "" && first_match != -1
+		call cursor([first_match, 1, 0, 1])
+	endif
 endfunction
 
 "---------------------------------------------------------------
