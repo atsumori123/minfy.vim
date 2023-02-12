@@ -132,8 +132,7 @@ endfunction
 "---------------------------------------------------------------
 " draw_items
 "---------------------------------------------------------------
-function! s:draw_items(...) abort
-	let match_char = len(a:000) ? a:000[0] : ""
+function! s:draw_items() abort
 	setlocal modifiable
 
 	" Draw items
@@ -142,7 +141,7 @@ function! s:draw_items(...) abort
 	if empty(items)
 		let text = ['  (no items)']
 	else
-		let text = map(copy(items), 'printf("%s %s", v:val[0] == match_char ? "!" : " ", v:val)')
+		let text = map(copy(items), 'printf("  %s", v:val)')
 	endif
 
 	let path = s:filer_get_param('current_dir')
@@ -155,6 +154,7 @@ function! s:draw_items(...) abort
 	setlocal nomodified
 
 	call s:restore_cursor()
+	echohl Directory | echomsg printf("%s   [%d items]", path, len(items)) | echohl None
 endfunction
 
 "---------------------------------------------------------------
@@ -175,8 +175,8 @@ function! s:skip_cursor() abort
 	let first_match = -1
 	let len = line('$')
 	let char = nr2char(getchar())
-	let match_char = char == "" ? "!" : escape(char, '^$.*[]/~\')
-	let replace_char = char == "" ? " " : "!"
+	let match_char = char == "" ? "|" : escape(char, '^$.*[]/~\')
+	let replace_char = char == "" ? " " : "|"
 
 	setlocal modifiable
 
@@ -246,8 +246,8 @@ function! s:init_minfy(dir) abort
 	syn match minfyHidden '^  \..\+$'
 	syn match minfyNoItems '^  (no items)$'
 	syn match minfyBookmark '^.*\t'
-	syn match minfyCurrentPath '^[^ !].*'
-	syn match minfyMatch '^!.*'
+	syn match minfyCurrentPath '^[^ |].*'
+	syn match minfyMatch '^|.*'
 	hi! def link minfyDirectory Directory
 	hi! def link minfyHidden Comment
 	hi! def link minfyNoItems Comment
