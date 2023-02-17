@@ -154,7 +154,7 @@ function! s:draw_items() abort
 	setlocal nomodified
 
 	call s:restore_cursor()
-	echohl Directory | echomsg printf("%s   [%d items]", path, len(items)) | echohl None
+"	echohl Directory | echomsg printf("%s   [%d items]", path, len(items)) | echohl None
 endfunction
 
 "---------------------------------------------------------------
@@ -187,7 +187,7 @@ function! s:skip_cursor() abort
 		if str =~ "^. ".match_char
 			call setline(n, replace_char.str[1:])
 			if first_match == -1 | let first_match = n | endif
-		elseif str =~ "^!"
+		elseif str =~ "^|"
 			call setline(n, " ".str[1:])
 		endif
 		let n += 1
