@@ -33,6 +33,11 @@ function! s:filer_toggle_hidden() abort
 	let b:minfy['items'] = s:get_items_from_dir(b:minfy['current_dir'], b:minfy['show_hidden'])
 endfunction
 
+"get items from dir
+function! s:filer_get_items(dir) abort
+	let b:minfy['items'] = s:get_items_from_dir(a:dir, b:minfy['show_hidden'])
+endfunction
+
 " get minfy param
 function! s:filer_get_param(key) abort
 	return b:minfy[a:key]
@@ -108,6 +113,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
+		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> e <nop>
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
@@ -125,7 +131,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> e :<C-u>call <SID>bookmark_edit()<CR>
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
-		nnoremap <buffer> <silent> d :<C-u>call <SID>bookmark_delete()<CR>
+		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
 	endif
 endfunction
 
@@ -299,6 +305,33 @@ endfunction
 "---------------------------------------------------------------
 function! s:toggle_hidden() abort
 	call s:filer_toggle_hidden()
+	call s:draw_items()
+endfunction
+
+"---------------------------------------------------------------
+" file_delete
+"---------------------------------------------------------------
+function! s:file_delete() abort
+	if line('.') == 1 | return | endif
+	let item_path = s:get_cursor_item()
+	if empty(item_path) | return | endif
+
+	"confirmation
+	let yn = input("Delete '".item_path."' (y/n)? ")
+	if empty(yn) || yn ==? 'n' |  echo "\rCancelled." | return | endif
+
+	"delete file or directory (Can not be deleted when empty)
+	let flag = isdirectory(item_path) ? 'd' : ''
+	if delete(item_path, flag) < 0
+		echo "\rCannot delete file: " . item_path
+	else
+		echo "\rDeleted file: ". item_path
+	endif
+
+	"Re Draw minfy buffer
+	let dir = s:filer_get_param('current_dir')
+	if empty(dir) | return | endif
+	call s:filer_get_items(dir)
 	call s:draw_items()
 endfunction
 
