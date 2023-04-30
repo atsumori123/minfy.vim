@@ -114,6 +114,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
+		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
 		nnoremap <buffer> <silent> e <nop>
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
@@ -132,6 +133,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
+		nnoremap <buffer> <silent> <F2> :<nop>
 	endif
 endfunction
 
@@ -331,6 +333,36 @@ function! s:file_delete() abort
 	"Re Draw minfy buffer
 	let dir = s:filer_get_param('current_dir')
 	if empty(dir) | return | endif
+	call s:filer_get_items(dir)
+	call s:draw_items()
+endfunction
+
+"---------------------------------------------------------------
+" file_rename
+"---------------------------------------------------------------
+function! s:file_rename() abort
+	if line('.') == 1 | return | endif
+	let path = s:get_cursor_item()
+	if empty(path) | return | endif
+
+	"Get tail part
+	let def_name = isdirectory(path) ? fnamemodify(path, ':t') : fnamemodify(path, ':p:t')
+
+	"Input new filename
+	let new_name = input('New file name: ', def_name)
+	if empty(new_name) | echo "\rCancelled." return | endif
+
+	"Get direcotry (Get parent directory if direcotry)
+	let dir = isdirectory(path) ? fnameescape(fnamemodify(path, ':h')) : fnamemodify(path, ':p:h')
+	let dir .= has('unix') ? '/' : '\'
+	let new_path = dir . new_name
+
+	"Rename
+	call rename(path, new_path)
+	echo 'Renamed file: ' . def_name . ' -> ' . new_name
+
+	"Re Draw minfy buffer
+	let dir = s:filer_get_param('current_dir')
 	call s:filer_get_items(dir)
 	call s:draw_items()
 endfunction
