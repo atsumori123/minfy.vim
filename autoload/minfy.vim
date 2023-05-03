@@ -115,6 +115,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
+		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
 		nnoremap <buffer> <silent> e <nop>
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
@@ -134,6 +135,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<nop>
+		nnoremap <buffer> <silent> mv :<nop>
 	endif
 endfunction
 
@@ -311,6 +313,30 @@ function! s:toggle_hidden() abort
 endfunction
 
 "---------------------------------------------------------------
+" get_last_component
+"---------------------------------------------------------------
+function! s:get_last_component(path) abort
+	return isdirectory(a:path) ? fnamemodify(a:path, ':t') : fnamemodify(a:path, ':p:t')
+endfunction
+
+"---------------------------------------------------------------
+" get_last_component
+"---------------------------------------------------------------
+function! s:err_msg(msg) abort
+	echo "\r"
+	echohl Error | echomsg a:msg | echohl None
+	return
+endfunction
+
+"---------------------------------------------------------------
+" refresh
+"---------------------------------------------------------------
+function! s:refresh() abort
+	call s:filer_get_items(s:filer_get_param('current_dir'))
+	call s:draw_items()
+endfunction
+
+"---------------------------------------------------------------
 " file_delete
 "---------------------------------------------------------------
 function! s:file_delete() abort
@@ -330,11 +356,9 @@ function! s:file_delete() abort
 		echo "\rDeleted file: ". item_path
 	endif
 
-	"Re Draw minfy buffer
-	let dir = s:filer_get_param('current_dir')
+	"Refresh minfy
 	if empty(dir) | return | endif
-	call s:filer_get_items(dir)
-	call s:draw_items()
+	call s:refresh()
 endfunction
 
 "---------------------------------------------------------------
@@ -346,7 +370,7 @@ function! s:file_rename() abort
 	if empty(path) | return | endif
 
 	"Get tail part
-	let def_name = isdirectory(path) ? fnamemodify(path, ':t') : fnamemodify(path, ':p:t')
+	let def_name = s:get_last_component(path)
 
 	"Input new filename
 	let new_name = input('New file name: ', def_name)
@@ -361,10 +385,45 @@ function! s:file_rename() abort
 	call rename(path, new_path)
 	echo 'Renamed file: ' . def_name . ' -> ' . new_name
 
-	"Re Draw minfy buffer
-	let dir = s:filer_get_param('current_dir')
-	call s:filer_get_items(dir)
-	call s:draw_items()
+	"Refresh minfy
+	call s:refresh()
+endfunction
+
+"---------------------------------------------------------------
+" file_move
+"---------------------------------------------------------------
+function! s:file_move() abort
+	if line('.') == 1 | return | endif
+	let src_path = s:get_cursor_item()
+	if empty(src_path) | return | endif
+
+	"Get tail part
+	let name = s:get_last_component(src_path)
+
+	"Input destination path
+	let wk = isdirectory(src_path) ? fnameescape(fnamemodify(src_path, ':h')) : fnamemodify(src_path, ':p:h')
+	let dst_path = resolve(input("Move '".name."' to: ", wk, 'dir'))
+	if empty(dst_path) | echo "\rCancelled." | return | endif
+
+	"When destination path is not directory, not excutable
+	if !isdirectory(dst_path)
+		call s:err_msg("Destination is not a directory: ".dst_path) | return
+	endif
+
+	"Make new path
+	let dst_path = fnamemodify(dst_path, ':p:h').(has('unix') ? '/' : '\').name
+
+	"When destination is read only or already exists, not excutable
+	if filereadable(dst_path) || isdirectory(dst_path)
+		call s:err_msg("File already exists. Skipped: ".dst_path) | return
+	endif
+
+	"Move
+	call rename(src_path, dst_path)
+	echo printf("\rMoved file: '%s' -> '%s'", name, dst_path)
+
+	"Refresh minfy
+	call s:refresh()
 endfunction
 
 "---------------------------------------------------------------
@@ -544,14 +603,12 @@ function! minfy#start(...) abort
 	" get directory path. if nothing then current directory path
 	let dir = resolve(get(a:000, 0, getcwd()))
 	if !isdirectory(dir)
-		echohl Error | echomsg "E01: Directory ".dir."doesn't exist" | echohl None
-		return
+		call s:err_msg("E01: Directory ".dir."doesn't exist") | return
 	endif
 
 	" if already minfy exist, return
 	if bufwinnr("-minfy-") != -1
-		echohl Error | echomsg "E02: Already minfy buffer exist" | echohl None
-		return
+		call s:err_msg("E02: Already minfy buffer exist") | return
 	endif
 
 	let s:save_bufnr = bufnr("%")
