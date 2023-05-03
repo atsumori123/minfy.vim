@@ -116,6 +116,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
 		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
+		nnoremap <buffer> <silent> mk :<C-u>call <SID>file_mkdir()<CR>
 		nnoremap <buffer> <silent> e <nop>
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
@@ -136,6 +137,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<nop>
 		nnoremap <buffer> <silent> mv :<nop>
+		nnoremap <buffer> <silent> mk :<nop>
 	endif
 endfunction
 
@@ -346,10 +348,23 @@ function! s:file_delete() abort
 
 	"confirmation
 	let yn = input("Delete '".item_path."' (y/n)? ")
-	if empty(yn) || yn ==? 'n' |  echo "\rCancelled." | return | endif
+	if empty(yn) || yn !=? 'y' |  echo "\rCancelled." | return | endif
 
-	"delete file or directory (Can not be deleted when empty)
-	let flag = isdirectory(item_path) ? 'd' : ''
+	"delete option set
+	if !isdirectory(item_path)
+		let flag = ''
+	elseif len(s:get_items_from_dir(item_path, 1)) == 0
+		let flag = 'd'
+	else
+		let yn = input("Directory is not empty. Force delete (y/n)? ")
+		if yn ==? 'y'
+			let flag = 'rf'
+		else
+			echo "\rCancelled." | return
+		endif
+	endif
+
+	"Delete
 	if delete(item_path, flag) < 0
 		echo "\rCannot delete file: " . item_path
 	else
@@ -357,7 +372,6 @@ function! s:file_delete() abort
 	endif
 
 	"Refresh minfy
-	if empty(dir) | return | endif
 	call s:refresh()
 endfunction
 
@@ -415,12 +429,35 @@ function! s:file_move() abort
 
 	"When destination is read only or already exists, not excutable
 	if filereadable(dst_path) || isdirectory(dst_path)
-		call s:err_msg("File already exists. Skipped: ".dst_path) | return
+		call s:err_msg("File already exists: ".dst_path) | return
 	endif
 
 	"Move
 	call rename(src_path, dst_path)
 	echo printf("\rMoved file: '%s' -> '%s'", name, dst_path)
+
+	"Refresh minfy
+	call s:refresh()
+endfunction
+
+"---------------------------------------------------------------
+" file_mkdir
+"---------------------------------------------------------------
+function! s:file_mkdir() abort
+	let name = input('New directory name: ')
+	if empty(name) | echo "\rCancelled." | return | endif
+
+	"Input new directory name
+	let path = resolve(s:filer_get_param("current_dir").(has('unix') ? '/' : '\').name)
+
+	"When destination is read only or already exists, not excutable
+	if filereadable(path) || isdirectory(path)
+		call s:err_msg("File already exists: ".path) | return
+	endif
+
+	" Make new directory
+	call mkdir(path, '')
+	echo 'Created new directory: '.name
 
 	"Refresh minfy
 	call s:refresh()
