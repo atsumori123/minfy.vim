@@ -90,10 +90,13 @@ endfunction
 "---------------------------------------------------------------
 " get_cursor_item
 "---------------------------------------------------------------
-function! s:get_cursor_item() abort
-	let sep = has('unix') ? '/' : '\'
-	let item = s:filer_get_param("current_dir")
-	let item .= item =~ escape(sep, '\').'$' ? '' : sep
+function! s:get_cursor_item(fullpath) abort
+	if a:fullpath
+		let item = s:filer_get_param("current_dir")
+		let item .= item =~ escape(s:separator, '\').'$' ? '' : s:separator
+	else
+		let item = ''
+	endif
 	let item .= get(s:filer_get_param("items"), line('.') - 2, "")
 	return substitute(item, "\[\\/\]$", "", "g")
 endfunction
@@ -281,7 +284,7 @@ endfunction
 function! s:open_current(open_cmd, close_and_open) abort
 	" next directory open or file open
 	if line('.') == 1 | return | endif
-	let item_path = s:get_cursor_item()
+	let item_path = s:get_cursor_item(1)
 	if empty(item_path) | return | endif
 	call s:file_open(item_path, a:open_cmd, a:close_and_open)
 endfunction
@@ -322,7 +325,7 @@ function! s:get_last_component(path) abort
 endfunction
 
 "---------------------------------------------------------------
-" get_last_component
+" err_msg
 "---------------------------------------------------------------
 function! s:err_msg(msg) abort
 	echo "\r"
@@ -343,17 +346,18 @@ endfunction
 "---------------------------------------------------------------
 function! s:file_delete() abort
 	if line('.') == 1 | return | endif
-	let item_path = s:get_cursor_item()
-	if empty(item_path) | return | endif
+	let item = s:get_cursor_item(0)
+	if empty(item) | return | endif
 
 	"confirmation
-	let yn = input("Delete '".item_path."' (y/n)? ")
+	let yn = input("Delete '".item."' (y/n)? ")
 	if empty(yn) || yn !=? 'y' |  echo "\rCancelled." | return | endif
 
 	"delete option set
-	if !isdirectory(item_path)
+	let delete_path = s:filer_get_param('current_dir').s:separator.item
+	if !isdirectory(delete_path)
 		let flag = ''
-	elseif len(s:get_items_from_dir(item_path, 1)) == 0
+	elseif len(s:get_items_from_dir(delete_path, 1)) == 0
 		let flag = 'd'
 	else
 		let yn = input("Directory is not empty. Force delete (y/n)? ")
@@ -365,10 +369,10 @@ function! s:file_delete() abort
 	endif
 
 	"Delete
-	if delete(item_path, flag) < 0
-		echo "\rCannot delete file: " . item_path
+	if delete(delete_path, flag) < 0
+		echo "\rCannot delete file: " . delete_path
 	else
-		echo "\rDeleted file: ". item_path
+		echo "\rDeleted file: ". delete_path
 	endif
 
 	"Refresh minfy
@@ -380,24 +384,24 @@ endfunction
 "---------------------------------------------------------------
 function! s:file_rename() abort
 	if line('.') == 1 | return | endif
-	let path = s:get_cursor_item()
-	if empty(path) | return | endif
-
-	"Get tail part
-	let def_name = s:get_last_component(path)
+	let org_name = s:get_cursor_item(0)
+	if empty(org_name) | return | endif
 
 	"Input new filename
-	let new_name = input('New file name: ', def_name)
-	if empty(new_name) | echo "\rCancelled." return | endif
+	let new_name = input('New name: ', org_name)
+	if empty(new_name) | echo "\rCancelled." | return | endif
 
 	"Get direcotry (Get parent directory if direcotry)
-	let dir = isdirectory(path) ? fnameescape(fnamemodify(path, ':h')) : fnamemodify(path, ':p:h')
-	let dir .= has('unix') ? '/' : '\'
-	let new_path = dir . new_name
+	let dir = s:filer_get_param('current_dir').s:separator
+
+	"When destination is read only or already exists, not excutable
+	if isdirectory(dir.new_name)
+		call s:err_msg("File already exists: ".dir.new_name) | return
+	endif
 
 	"Rename
-	call rename(path, new_path)
-	echo 'Renamed file: ' . def_name . ' -> ' . new_name
+	call rename(dir.org_name, dir.new_name)
+	echo 'Renamed file: ' . org_name . ' -> ' . new_name
 
 	"Refresh minfy
 	call s:refresh()
@@ -408,33 +412,30 @@ endfunction
 "---------------------------------------------------------------
 function! s:file_move() abort
 	if line('.') == 1 | return | endif
-	let src_path = s:get_cursor_item()
-	if empty(src_path) | return | endif
-
-	"Get tail part
-	let name = s:get_last_component(src_path)
+	let src_name = s:get_cursor_item(0)
+	if empty(src_name) | return | endif
 
 	"Input destination path
-	let wk = isdirectory(src_path) ? fnameescape(fnamemodify(src_path, ':h')) : fnamemodify(src_path, ':p:h')
-	let dst_path = resolve(input("Move '".name."' to: ", wk, 'dir'))
-	if empty(dst_path) | echo "\rCancelled." | return | endif
+	let src = s:get_cursor_item(1)
+	let dst = resolve(input("Move '".src_name."' to: ", s:filer_get_param('current_dir'), 'dir'))
+	if empty(dst) | echo "\rCancelled." | return | endif
 
 	"When destination path is not directory, not excutable
-	if !isdirectory(dst_path)
-		call s:err_msg("Destination is not a directory: ".dst_path) | return
+	if !isdirectory(dst)
+		call s:err_msg("Destination is not a directory: ".dst) | return
 	endif
 
-	"Make new path
-	let dst_path = fnamemodify(dst_path, ':p:h').(has('unix') ? '/' : '\').name
+	"Make distination path
+	let dst .= s:separator.src_name
 
 	"When destination is read only or already exists, not excutable
-	if filereadable(dst_path) || isdirectory(dst_path)
-		call s:err_msg("File already exists: ".dst_path) | return
+	if filereadable(dst) || isdirectory(dst)
+		call s:err_msg("File already exists: ".dst) | return
 	endif
 
 	"Move
-	call rename(src_path, dst_path)
-	echo printf("\rMoved file: '%s' -> '%s'", name, dst_path)
+	call rename(src, dst)
+	echo printf("\rMoved file: '%s' -> '%s'", src_name, dst)
 
 	"Refresh minfy
 	call s:refresh()
@@ -448,7 +449,7 @@ function! s:file_mkdir() abort
 	if empty(name) | echo "\rCancelled." | return | endif
 
 	"Input new directory name
-	let path = resolve(s:filer_get_param("current_dir").(has('unix') ? '/' : '\').name)
+	let path = resolve(s:filer_get_param("current_dir").s:separator.name)
 
 	"When destination is read only or already exists, not excutable
 	if filereadable(path) || isdirectory(path)
@@ -532,7 +533,7 @@ endfunction
 " bookmark_add
 "---------------------------------------------------------------
 function! s:bookmark_add() abort
-	let item = s:get_cursor_item()
+	let item = s:get_cursor_item(1)
 	if empty(item) | return | endif
 
 	let abbreviation = input('abbreviation: ')
@@ -648,6 +649,7 @@ function! minfy#start(...) abort
 		call s:err_msg("E02: Already minfy buffer exist") | return
 	endif
 
+	let s:separator = has('unix') ? '/' : '\'
 	let s:save_bufnr = bufnr("%")
 	let s:bookmark_status = 0
 	call s:init_minfy(dir)
