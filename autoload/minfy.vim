@@ -395,7 +395,7 @@ function! s:file_rename() abort
 	let dir = s:filer_get_param('current_dir').s:separator
 
 	"When destination is read only or already exists, not excutable
-	if isdirectory(dir.new_name)
+	if getftype(dir.new_name) != ""
 		call s:err_msg("File already exists: ".dir.new_name) | return
 	endif
 
@@ -426,6 +426,7 @@ function! s:file_move() abort
 	endif
 
 	"Make distination path
+	let dst = substitute(dst, '[/|\\]$', "", "")
 	let dst .= s:separator.src_name
 
 	"When destination is read only or already exists, not excutable
