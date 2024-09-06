@@ -111,11 +111,11 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> L :<C-u>call <SID>open_current('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>open_current('vsplit', 0)<CR>
 		nnoremap <buffer> <silent> . :<C-u>call <SID>toggle_hidden()<CR>
-		nnoremap <buffer> <silent> f :<C-u>call <SID>skip_cursor()<CR>
 		nnoremap <buffer> <silent> b :<C-u>call <SID>bookmark_open()<CR>
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
+		nnoremap <buffer> <silent> s <nop>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
 		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
@@ -124,6 +124,11 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
 		nnoremap <buffer> <silent> d <nop>
+		if g:Minfy_use_easymotion == 0
+			nnoremap <buffer> <silent> f :<C-u>call <SID>skip_cursor()<CR>
+			nnoremap <buffer> <silent> n :<C-u>call <SID>skip_cursor_n(1)<CR>
+			nnoremap <buffer> <silent> N :<C-u>call <SID>skip_cursor_n(-1)<CR>
+		endif
 	else
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
 		nnoremap <buffer> <silent> l :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
@@ -134,6 +139,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h <nop>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> a <nop>
+		nnoremap <buffer> <silent> s :<C-u>call <SID>bookmark_separator()<CR>
 		nnoremap <buffer> <silent> e :<C-u>call <SID>bookmark_edit()<CR>
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
@@ -216,6 +222,23 @@ function! s:skip_cursor() abort
 endfunction
 
 "---------------------------------------------------------------
+" skip_cursor_n
+"---------------------------------------------------------------
+function! s:skip_cursor_n(direction) abort
+	let n = line(".") + a:direction
+	let len = line('$')
+	for i in range(1, len)
+		if n > len | let n = 2 | endif
+		if n < 2 | let n = len | endif
+		if getline(n) =~ "^|"
+			call cursor([n, 1, 0, 1])
+			break
+		endif
+		let n += a:direction
+	endfor
+endfunction
+
+"---------------------------------------------------------------
 " file_open
 "---------------------------------------------------------------
 function! s:file_open(path, open_cmd, close_and_open) abort
@@ -260,15 +283,17 @@ function! s:init_minfy(dir) abort
 	syn match minfyDirectory '^  .\+/$'
 	syn match minfyHidden '^  \..\+$'
 	syn match minfyNoItems '^  (no items)$'
-	syn match minfyBookmark '^.*\t'
+	syn match minfyBookmark '^.\{-}\ze('
 	syn match minfyCurrentPath '^[^ |].*'
 	syn match minfyMatch '^|.*'
+	syn match minfySeparator '^\[.\{-}]'
 	hi! def link minfyDirectory Directory
 	hi! def link minfyHidden Comment
 	hi! def link minfyNoItems Comment
 	hi! def link minfyBookmark Directory
 	hi! def link minfyMatch Title
 	hi! def link minfyCurrentPath Identifier
+	hi! def link minfySeparator Label
 
 	" create first filer
 	call s:filer_init(a:dir)
@@ -388,7 +413,7 @@ function! s:file_rename() abort
 	if empty(org_name) | return | endif
 
 	"Input new filename
-	let new_name = input('New name: ', org_name)
+	let new_name = input('Input new name: ', org_name)
 	if empty(new_name) | echo "\rCancelled." | return | endif
 
 	"Get direcotry (Get parent directory if direcotry)
@@ -446,7 +471,7 @@ endfunction
 " file_mkdir
 "---------------------------------------------------------------
 function! s:file_mkdir() abort
-	let name = input('New directory name: ')
+	let name = input('Input new directory name: ')
 	if empty(name) | echo "\rCancelled." | return | endif
 
 	"Input new directory name
@@ -477,7 +502,11 @@ function! s:bookmark_open() abort
 	let output = []
 	for bk in s:bookmark
 		let wk = split(bk, "\t")
-		call add(output, printf("  %-20s\t%s", wk[0], wk[1]))
+		if wk[0] == "&sep"
+			call add(output, "[ ".wk[1]." ]")
+		else
+			call add(output, "  ".wk[0]." (".wk[1].")")
+		endif
 	endfor
 
 	" Delete the contents of the buffer to the black-hole register
@@ -487,7 +516,7 @@ function! s:bookmark_open() abort
 	call setline(2, output)
 
 	" Delete the empty line at the end of the buffer
-	silent! $delete _
+"	silent! $delete _
 	setlocal nomodifiable
 
 	" Move the cursor to the beginning of the file
@@ -514,7 +543,10 @@ endfunction
 " bookmark_selected
 "---------------------------------------------------------------
 function! s:bookmark_selected(open_cmd, close_and_open) abort
-	if line('.') == 1 | return | endif
+	" 1st line and separaotr are invalid
+	if line('.') == 1 || getline(".")[0] == "["
+		  return
+	endif
 
 	" If Bookmark changed, it is save
 	if s:bookmark_status == 2
@@ -522,7 +554,7 @@ function! s:bookmark_selected(open_cmd, close_and_open) abort
 	endif
 
 	" open selected item
-	let path = substitute(getline("."), ".*\t", "", "")
+	let path = split(s:bookmark[line(".") - 2], "\t")[1]
 	if isdirectory(path)
 		call s:set_keymap('FILER')
 	endif
@@ -537,9 +569,9 @@ function! s:bookmark_add() abort
 	let item = s:get_cursor_item(1)
 	if empty(item) | return | endif
 
-	let abbreviation = input('abbreviation: ')
-	let abbreviation = abbreviation[:19]
-	if !len(abbreviation)
+	let name = input('Input bookmark name: ')
+	let name = name[:19]
+	if !len(name)
 		return
 	endif
 
@@ -549,12 +581,27 @@ function! s:bookmark_add() abort
 	call filter(s:bookmark, 'substitute(v:val, ".*\t", "", "") !=# item')
 
 	" Add the new file list to the beginning of the updated old file list
-	call insert(s:bookmark, abbreviation."\t".item, 0)
+	call insert(s:bookmark, name."\t".item, 0)
 
 	" Save bookmark file
 	call s:bookmark_save()
 
 	echo "\rAdd to bookmark. (".item.")"
+endfunction
+
+"---------------------------------------------------------------
+" bookmark_separator
+"---------------------------------------------------------------
+function! s:bookmark_separator() abort
+	let sep_name = input('Input separaotr name: ')
+	if !len(sep_name) | return | endif
+	call insert(s:bookmark, "&sep\t".sep_name, line(".") - 1)
+
+	setlocal modifiable
+	call append(line("."), "[ ".sep_name." ]")
+	setlocal nomodifiable
+
+	let s:bookmark_status = 2
 endfunction
 
 "---------------------------------------------------------------
@@ -564,17 +611,25 @@ function! s:bookmark_edit() abort
 	if line('.') == 1 | return | endif
 
 	let wk = split(s:bookmark[line(".") - 2], "\t")
-	let new_path = input('new path: ', wk[1], 'dir')
-	let new_path = substitute(new_path, '[/|\\]$', "", "")
-	if !len(new_path) | return | endif
+	if wk[0] == "&sep"
+		let new_sep_name = input('Input new separator name: ', wk[1])
+		if !len(new_sep_name) | return | endif
+		let s:bookmark[line(".") - 2] = "&sep\t".new_sep_name
+		let temp = "[ ".new_sep_name." ]"
+	else
+		let new_path = input('Input new path: ', wk[1], 'dir')
+		let new_path = substitute(new_path, '[/|\\]$', "", "")
+		if !len(new_path) | return | endif
 
-	let new_abbreviation = input('new abbreviation: ', wk[0])
-	let new_abbreviation = new_abbreviation[:19]
-	if !len(new_abbreviation) | return | endif
+		let new_name = input('Input new bookmark name: ', wk[0])
+		if !len(new_name) | return | endif
 
-	let s:bookmark[line(".") - 2] = new_abbreviation."\t".new_path
+		let s:bookmark[line(".") - 2] = new_name."\t".new_path
+		let temp = "  ".new_name." (".new_path.")"
+	endif
+
 	setlocal modifiable
-	call setline(line("."), printf("  %-20s\t%s", new_abbreviation, new_path))
+	call setline(line("."), temp)
 	setlocal nomodifiable
 
 	let s:bookmark_status = 2
@@ -586,7 +641,7 @@ endfunction
 function! s:bookmark_updown(updown) abort
 	let lnum = line(".")
 	let next = lnum + (a:updown == 'up' ? -1 : 1)
-	if lnum == 1 || next < 2 || next > len(s:bookmark)
+	if lnum == 1 || next < 2 || next > len(s:bookmark) + 1
 		return
 	endif
 
