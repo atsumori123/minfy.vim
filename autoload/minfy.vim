@@ -318,6 +318,11 @@ endfunction
 " open_parent
 "---------------------------------------------------------------
 function! s:open_parent() abort
+	" if already the current directory, then NOP (for GitBush)
+	if strridx(b:minfy['current_dir'], '/') <= 0
+		return
+	endif
+
 	call s:filer_to_parent()
 	call s:draw_items()
 endfunction
