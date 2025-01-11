@@ -115,7 +115,6 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
-		nnoremap <buffer> <silent> s <nop>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
 		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
@@ -124,11 +123,9 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> K <nop>
 		nnoremap <buffer> <silent> J <nop>
 		nnoremap <buffer> <silent> d <nop>
-		if g:Minfy_use_easymotion == 0
-			nnoremap <buffer> <silent> f :<C-u>call <SID>skip_cursor()<CR>
-			nnoremap <buffer> <silent> n :<C-u>call <SID>skip_cursor_n(1)<CR>
-			nnoremap <buffer> <silent> N :<C-u>call <SID>skip_cursor_n(-1)<CR>
-		endif
+		nnoremap <buffer> <silent> s :<C-u>call <SID>skip_cursor()<CR>
+		nnoremap <buffer> <silent> J :<C-u>call <SID>skip_cursor_n(1)<CR>
+		nnoremap <buffer> <silent> K :<C-u>call <SID>skip_cursor_n(-1)<CR>
 	else
 		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
 		nnoremap <buffer> <silent> l :<C-u>call <SID>bookmark_selected('edit', 0)<CR>
@@ -318,11 +315,6 @@ endfunction
 " open_parent
 "---------------------------------------------------------------
 function! s:open_parent() abort
-	" if already the current directory, then NOP (for GitBush)
-	if strridx(b:minfy['current_dir'], '/') <= 0
-		return
-	endif
-
 	call s:filer_to_parent()
 	call s:draw_items()
 endfunction
