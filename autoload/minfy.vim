@@ -278,9 +278,10 @@ function! s:init_minfy(dir) abort
 
 	" hiligh
 	syn match minfyDirectory '^  .\+/$'
+"	syn match minfyDirectory '\S\+/\s*$'
 	syn match minfyHidden '^  \..\+$'
 	syn match minfyNoItems '^  (no items)$'
-	syn match minfyBookmark '^.\{-}\ze('
+	syn match minfyBookmark '.*\ze (\(\w\+:\)\?[/\\].*)$'
 	syn match minfyCurrentPath '^[^ |].*'
 	syn match minfyMatch '^|.*'
 	syn match minfySeparator '^\[.\{-}]'
