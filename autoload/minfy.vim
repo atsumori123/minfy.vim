@@ -106,10 +106,10 @@ endfunction
 "---------------------------------------------------------------
 function! s:set_keymap(map_type) abort
 	if a:map_type == "FILER"
-		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>open_current('edit', 0)<CR>
-		nnoremap <buffer> <silent> l :<C-u>call <SID>open_current('edit', 0)<CR>
-		nnoremap <buffer> <silent> L :<C-u>call <SID>open_current('edit', 1)<CR>
-		nnoremap <buffer> <silent> v :<C-u>call <SID>open_current('vsplit', 0)<CR>
+		nnoremap <buffer> <silent> <CR> :<C-u>call <SID>open_current('enew', 0)<CR>
+		nnoremap <buffer> <silent> l :<C-u>call <SID>open_current('enew', 0)<CR>
+		nnoremap <buffer> <silent> L :<C-u>call <SID>open_current('enew', 1)<CR>
+		nnoremap <buffer> <silent> v :<C-u>call <SID>open_current('vnew', 0)<CR>
 		nnoremap <buffer> <silent> . :<C-u>call <SID>toggle_hidden()<CR>
 		nnoremap <buffer> <silent> b :<C-u>call <SID>bookmark_open()<CR>
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
@@ -244,7 +244,16 @@ function! s:file_open(path, open_cmd, close_and_open) abort
 		call s:draw_items()
 	else
 		call s:quit()
-		execute printf('%s %s', a:open_cmd, fnameescape(a:path))
+
+		let winnum = bufwinnr('^' . a:path . '$')
+		if winnum != -1
+			execute winnum . 'wincmd w'
+		else
+			execute a:open_cmd
+			execute 'edit ' . fnameescape(a:path)
+"			execute printf('%s %s', a:open_cmd, fnameescape(a:path))
+		endif
+
 		if a:close_and_open
 			if bufexists(s:save_bufnr) && bufnr("%") != s:save_bufnr
 				if getbufinfo(s:save_bufnr)[0].changed
