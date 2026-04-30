@@ -117,6 +117,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
+		nnoremap <buffer> <silent> cp :<C-u>call <SID>file_copy()<CR>
 		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
 		nnoremap <buffer> <silent> mk :<C-u>call <SID>file_mkdir()<CR>
 		nnoremap <buffer> <silent> e <nop>
@@ -142,6 +143,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
 		nnoremap <buffer> <silent> <F2> :<nop>
+		nnoremap <buffer> <silent> cp :<nop>
 		nnoremap <buffer> <silent> mv :<nop>
 		nnoremap <buffer> <silent> mk :<nop>
 	endif
@@ -287,7 +289,6 @@ function! s:init_minfy(dir) abort
 
 	" hiligh
 	syn match minfyDirectory '^  .\+/$'
-"	syn match minfyDirectory '\S\+/\s*$'
 	syn match minfyHidden '^  \..\+$'
 	syn match minfyNoItems '^  (no items)$'
 	syn match minfyBookmark '.*\ze (\(\w\+:\)\?[/\\].*)$'
@@ -298,7 +299,7 @@ function! s:init_minfy(dir) abort
 	hi! def link minfyHidden Comment
 	hi! def link minfyNoItems Comment
 	hi! def link minfyBookmark Directory
-	hi! def link minfyMatch Title
+	hi! def link minfyMatch Label
 	hi! def link minfyCurrentPath Identifier
 	hi! def link minfySeparator Label
 
@@ -440,6 +441,52 @@ function! s:file_rename() abort
 endfunction
 
 "---------------------------------------------------------------
+" file_copy
+"---------------------------------------------------------------
+function! s:file_copy() abort
+	if line('.') == 1 | return | endif
+	let src_name = s:get_cursor_item(0)
+	if empty(src_name) | return | endif
+
+	"ディレクトリはコピーさせない
+	let src = s:get_cursor_item(1)
+	if isdirectory(src)
+		call s:err_msg("Directory cannot be copied.") | return
+	endif
+
+	"コピー先を入力
+	let dst = resolve(input("Copy to ", s:filer_get_param('current_dir'), 'dir'))
+	if empty(dst) | echo "\rCancelled." | return | endif
+
+	"入力したコピー先が存在するかチェック
+	if !isdirectory(dst)
+		call s:err_msg("Destination is not exists.") | return
+	endif
+
+	"コピー元とコピー先が同じディレクトリの場合はファイル名を入力する
+	let dst_name = src_name
+	if s:filer_get_param('current_dir') ==# dst
+		let dst_name = input("Copy destinatin name: ", src_name)
+		if empty(dst_name) || src_name ==# dst_name | call s:err_msg("Copy destination name is NULL or duplicate.") | return | endif
+	endif
+
+	"Make distination path
+	let dst = substitute(dst, '[/|\\]$', "", "") . s:separator . dst_name
+
+	"When destination is read only or already exists, not excutable
+	if filereadable(dst) || isdirectory(dst)
+		call s:err_msg("Destination already has the same file.") | return
+	endif
+
+	"Copy
+	call writefile(readfile(src, 'b'), dst, 'b')
+	echo printf("\rCopyed. '%s' --> '%s'", src_name, dst)
+
+	"Refresh minfy
+	call s:refresh()
+endfunction
+
+"---------------------------------------------------------------
 " file_move
 "---------------------------------------------------------------
 function! s:file_move() abort
@@ -449,26 +496,25 @@ function! s:file_move() abort
 
 	"Input destination path
 	let src = s:get_cursor_item(1)
-	let dst = resolve(input("Move '".src_name."' to: ", s:filer_get_param('current_dir'), 'dir'))
+	let dst = resolve(input("Move to ", s:filer_get_param('current_dir'), 'dir'))
 	if empty(dst) | echo "\rCancelled." | return | endif
 
 	"When destination path is not directory, not excutable
 	if !isdirectory(dst)
-		call s:err_msg("Destination is not a directory: ".dst) | return
+		call s:err_msg("Destination is not exists.") | return
 	endif
 
 	"Make distination path
-	let dst = substitute(dst, '[/|\\]$', "", "")
-	let dst .= s:separator.src_name
+	let dst = substitute(dst, '[/|\\]$', "", "") . s:separator . src_name
 
 	"When destination is read only or already exists, not excutable
 	if filereadable(dst) || isdirectory(dst)
-		call s:err_msg("File already exists: ".dst) | return
+		call s:err_msg("Destination already has the same file.") | return
 	endif
 
 	"Move
 	call rename(src, dst)
-	echo printf("\rMoved file: '%s' -> '%s'", src_name, dst)
+	echo printf("\rMoved. '%s' --> '%s'", src_name, dst)
 
 	"Refresh minfy
 	call s:refresh()
@@ -478,7 +524,7 @@ endfunction
 " file_mkdir
 "---------------------------------------------------------------
 function! s:file_mkdir() abort
-	let name = input('Input new directory name: ')
+	let name = input('Create directory name: ')
 	if empty(name) | echo "\rCancelled." | return | endif
 
 	"Input new directory name
@@ -486,12 +532,12 @@ function! s:file_mkdir() abort
 
 	"When destination is read only or already exists, not excutable
 	if filereadable(path) || isdirectory(path)
-		call s:err_msg("File already exists: ".path) | return
+		call s:err_msg("Destination already has the same directory.") | return
 	endif
 
 	" Make new directory
 	call mkdir(path, '')
-	echo 'Created new directory: '.name
+	echo 'Created. ' . name
 
 	"Refresh minfy
 	call s:refresh()
@@ -577,7 +623,7 @@ function! s:bookmark_add() abort
 	if empty(item) | return | endif
 
 	let name = input('Input bookmark name: ')
-	let name = name[:19]
+"	let name = name[:19]
 	if !len(name)
 		return
 	endif
