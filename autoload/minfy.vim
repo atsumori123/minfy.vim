@@ -116,7 +116,6 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
-		nnoremap <buffer> <silent> <F2> :<C-u>call <SID>file_rename()<CR>
 		nnoremap <buffer> <silent> cp :<C-u>call <SID>file_copy()<CR>
 		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
 		nnoremap <buffer> <silent> mk :<C-u>call <SID>file_mkdir()<CR>
@@ -142,7 +141,6 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
 		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
-		nnoremap <buffer> <silent> <F2> :<nop>
 		nnoremap <buffer> <silent> cp :<nop>
 		nnoremap <buffer> <silent> mv :<nop>
 		nnoremap <buffer> <silent> mk :<nop>
@@ -413,34 +411,6 @@ function! s:file_delete() abort
 endfunction
 
 "---------------------------------------------------------------
-" file_rename
-"---------------------------------------------------------------
-function! s:file_rename() abort
-	if line('.') == 1 | return | endif
-	let org_name = s:get_cursor_item(0)
-	if empty(org_name) | return | endif
-
-	"Input new filename
-	let new_name = input('Input new name: ', org_name)
-	if empty(new_name) | echo "\rCancelled." | return | endif
-
-	"Get direcotry (Get parent directory if direcotry)
-	let dir = s:filer_get_param('current_dir').s:separator
-
-	"When destination is read only or already exists, not excutable
-	if getftype(dir.new_name) != ""
-		call s:err_msg("File already exists: ".dir.new_name) | return
-	endif
-
-	"Rename
-	call rename(dir.org_name, dir.new_name)
-	echo 'Renamed file: ' . org_name . ' -> ' . new_name
-
-	"Refresh minfy
-	call s:refresh()
-endfunction
-
-"---------------------------------------------------------------
 " file_copy
 "---------------------------------------------------------------
 function! s:file_copy() abort
@@ -491,25 +461,33 @@ endfunction
 "---------------------------------------------------------------
 function! s:file_move() abort
 	if line('.') == 1 | return | endif
+
+	"選択項目
 	let src_name = s:get_cursor_item(0)
 	if empty(src_name) | return | endif
 
-	"Input destination path
+	"選択項目のフルパス
 	let src = s:get_cursor_item(1)
-	let dst = resolve(input("Move to ", s:filer_get_param('current_dir'), 'dir'))
-	if empty(dst) | echo "\rCancelled." | return | endif
 
-	"When destination path is not directory, not excutable
-	if !isdirectory(dst)
+	"移動先ディレクトリの入力
+	let dst_dir = resolve(input("Move to ", s:filer_get_param('current_dir'), 'dir'))
+	if empty(dst_dir) | echo "\rCancelled." | return | endif
+
+	"移動先が存在しないディレクトリの場合はエラーとする
+	if !isdirectory(dst_dir)
 		call s:err_msg("Destination is not exists.") | return
 	endif
 
-	"Make distination path
-	let dst = substitute(dst, '[/|\\]$', "", "") . s:separator . src_name
+	"移動先のフルパスを作成
+	let dst = substitute(dst_dir, '[/|\\]$', "", "") . s:separator . src_name
 
-	"When destination is read only or already exists, not excutable
-	if filereadable(dst) || isdirectory(dst)
-		call s:err_msg("Destination already has the same file.") | return
+	"移動先が選択項目が同じ場所の場合は新しい名前をつける
+	if src == dst
+	 	let dst_name = input('Input new name: ', src_name)
+		if empty(dst_name) | echo "\rCancelled." | return | endif
+
+		let dst = substitute(dst_dir, '[/|\\]$', "", "") . s:separator . dst_name
+		if src == dst | call s:err_msg("Destination already has the same object.") | return | endif
 	endif
 
 	"Move
