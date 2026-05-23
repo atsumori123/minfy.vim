@@ -115,7 +115,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
-		nnoremap <buffer> <silent> dd :<C-u>call <SID>file_delete()<CR>
+		nnoremap <buffer> <silent> rm :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> cp :<C-u>call <SID>file_copy()<CR>
 		nnoremap <buffer> <silent> mv :<C-u>call <SID>file_move()<CR>
 		nnoremap <buffer> <silent> mk :<C-u>call <SID>file_mkdir()<CR>
@@ -140,7 +140,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> e :<C-u>call <SID>bookmark_edit()<CR>
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
 		nnoremap <buffer> <silent> J :<C-u>call <SID>bookmark_updown('down')<CR>
-		nnoremap <buffer> <silent> dd :<C-u>call <SID>bookmark_delete()<CR>
+		nnoremap <buffer> <silent> rm :<C-u>call <SID>bookmark_delete()<CR>
 		nnoremap <buffer> <silent> cp :<nop>
 		nnoremap <buffer> <silent> mv :<nop>
 		nnoremap <buffer> <silent> mk :<nop>
@@ -247,6 +247,7 @@ function! s:file_open(path, open_cmd, close_and_open) abort
 
 		let winnum = bufwinnr('^' . a:path . '$')
 		if winnum != -1
+			" 開こうとしているファイルがどこかのウィンドウで表示している
 			execute winnum . 'wincmd w'
 		else
 "			execute a:open_cmd
@@ -277,7 +278,7 @@ function! s:init_minfy(dir) abort
 	setlocal modifiable
 	setlocal filetype=minfy
 	setlocal buftype=nofile
-	setlocal bufhidden=delete
+"	setlocal bufhidden=delete
 	setlocal noswapfile
 	setlocal nowrap
 	setlocal cursorline
@@ -332,12 +333,16 @@ endfunction
 " quit
 "---------------------------------------------------------------
 function! s:quit() abort
-	" Try restoring alternate buffer
-	if bufexists(s:save_bufnr) && bufnr('%') != s:save_bufnr
+	" minfyのbufnr
+	let bufnr = bufnr("%")
+
+	" minfy起動前に表示していたバッファにスイッチ
+	if bufexists(s:save_bufnr)
 		execute printf('buffer! %d', s:save_bufnr)
-	else
-		enew
 	endif
+
+	" minfy削除
+	execute printf('bdelete %d', bufnr)
 endfunction
 
 "---------------------------------------------------------------
@@ -728,12 +733,12 @@ function! minfy#start(...) abort
 	" get directory path. if nothing then current directory path
 	let dir = resolve(get(a:000, 0, getcwd()))
 	if !isdirectory(dir)
-		call s:err_msg("E01: Directory ".dir."doesn't exist") | return
+		call s:err_msg("E01: Directory ".dir."doesn't exist.") | return
 	endif
 
-	" if already minfy exist, return
-	if bufwinnr("-minfy-") != -1
-		call s:err_msg("E02: Already minfy buffer exist") | return
+	" 特殊バッファ上では無効
+	if &buftype != ''
+		call s:err_msg("E02: Cannot be executed due to a special buffer.") | return
 	endif
 
 	let s:separator = has('unix') ? '/' : '\'
