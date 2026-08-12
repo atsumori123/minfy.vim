@@ -92,7 +92,8 @@ endfunction
 "---------------------------------------------------------------
 function! s:get_cursor_item(fullpath) abort
 	if a:fullpath
-		let item = s:filer_get_param("current_dir") . '/'
+		let item = s:filer_get_param("current_dir")
+		let item .= item =~ '/$' ? "" : "/"
 	else
 		let item = ''
 	endif
@@ -114,7 +115,7 @@ function! s:get_char(prompt) abort
 
 	if char == 27 || char == 3
 		" ESC or <C-c> key pressed
-		redraw | echom "Cancelled."
+		redraw | echo "Cancelled."
 		return ''
 	endif
 
@@ -153,7 +154,7 @@ function! s:safe_input(prompt, text, completion)
 
 	" キャンセル判定
 	if is_cancelled || str == '__CANCEL__'
-		redraw | echom "Cancelled."
+		redraw | echo "Cancelled."
 		return [0, ""]
 	endif
 
@@ -351,7 +352,6 @@ function! s:init_minfy(dir) abort
 	hi! def link minfyMatch Special
 	hi! def link minfySeparator Label
 	hi! def link minfyCurrentPath Title
-" 	let w:first_line_match = matchadd('Title', '\%1l', -1)
 
 	" create first filer
 	call s:filer_init(a:dir)
@@ -384,18 +384,12 @@ endfunction
 " quit
 "---------------------------------------------------------------
 function! s:quit() abort
-	" minfyのbufnr
-"	let bufnr = bufnr("%")
-
 	" minfy起動前に表示していたバッファにスイッチ
-	if bufexists(s:save_bufnr)
+	if s:save_bufnr == bufnr("%")
+		bdelete
+	elseif bufexists(s:save_bufnr)
 		execute printf('buffer! %d', s:save_bufnr)
 	endif
-
-"	silent! call matchdelete(w:first_line_match)
-
-	" minfy削除
-"	execute printf('bdelete %d', bufnr)
 endfunction
 
 "---------------------------------------------------------------
@@ -417,7 +411,7 @@ endfunction
 " err_msg
 "---------------------------------------------------------------
 function! s:err_msg(msg) abort
-	echo "\r"
+	redraw
 	echohl Error | echomsg a:msg | echohl None
 	return
 endfunction
@@ -693,12 +687,12 @@ function! s:bookmark_edit() abort
 	let name = len(wk) > 1 ? wk[1] : ""
 
 	if wk[0] == "&sep"
-		let [res, new_name] = s:safe_input('Input new name: ', name, "")
+		let [res, new_name] = s:safe_input('Input name: ', name, "")
 		if !res | return | endif
 		let s:bookmark[line(".") - 2] = "&sep\t".new_name
 		let item = '- ' . new_name
 	else
-		let [res, new_path] = s:safe_input('Input new path: ', wk[0], 'dir')
+		let [res, new_path] = s:safe_input('Input path: ', wk[0], 'dir')
 		if !res || !len(new_path) | return | endif
 		let new_path = substitute(new_path, '[/|\\]$', "", "")
 
