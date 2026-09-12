@@ -16,7 +16,7 @@ endfunction
 " move to parent directory
 function! s:filer_to_parent() abort
 	let b:minfy['last_dir'] = b:minfy['current_dir']
-	let b:minfy['current_dir'] = fnameescape(fnamemodify(b:minfy['last_dir'], ':h'))
+	let b:minfy['current_dir'] = fnamemodify(b:minfy['last_dir'], ':h')
 	let b:minfy['items'] = s:get_items_from_dir(b:minfy['current_dir'], b:minfy['show_hidden'])
 endfunction
 
