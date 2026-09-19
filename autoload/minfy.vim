@@ -218,9 +218,8 @@ function! s:draw_items() abort
 	let path = s:filer_get_param('current_dir')
 	let dellen = strlen(path) - (&columns - 10)
 	if dellen > 0 | let path = "..".path[dellen:] | endif
-	call setline(1, path)
-	call setline(2, text)
-
+	call setline(1, [path] + text)
+	
 	setlocal nomodifiable
 	setlocal nomodified
 
@@ -442,15 +441,13 @@ function! s:file_delete() abort
 	let delete_path = s:filer_get_param('current_dir').'/'.item
 	if !isdirectory(delete_path)
 		let flag = ''
-	elseif len(s:get_items_from_dir(delete_path, 1)) == 0
+	elseif empty(readdir(delete_path, 1))
 		let flag = 'd'
 	else
-		let yn = input("Directory is not empty. Force delete (y/n)? ")
-		if yn ==? 'y'
-			let flag = 'rf'
-		else
+		if s:get_char("Directory is not empty. Force delete (y/n) ? [y/n] ") != 'y'
 			echo "\rCancelled." | return
 		endif
+		let flag = 'rf'
 	endif
 
 	"Delete
@@ -474,9 +471,6 @@ function! s:file_copy() abort
 
 	"ディレクトリはコピーさせない
 	let src = s:get_cursor_item(1)
-	if isdirectory(src)
-		call s:err_msg("Directory cannot be copied.") | return
-	endif
 
 	"コピー先を入力
 	let dst = resolve(input("Copy to ", s:filer_get_param('current_dir'), 'dir'))
@@ -503,7 +497,24 @@ function! s:file_copy() abort
 	endif
 
 	"Copy
-	call writefile(readfile(src, 'b'), dst, 'b')
+	if has('win32')
+		let src = substitute(src, '/', '\\', 'g')
+		let dst = substitute(dst, '/', '\\', 'g')
+		if isdirectory(src)
+			let command = 'cmd.exe /d /c xcopy /E /I ' . src . ' ' . dst . ' > nul'
+		else
+			let command = 'cmd.exe /d /c copy /Y /B ' . src . ' ' . dst . ' > nul'
+		endif
+	else
+		let opt = isdirectory(src) ? '-r -p -r' : '-p -r'
+		let command = 'cp ' . opt . ' -- ' . shellescape(src) . ' ' . shellescape(dst)
+	endif
+
+	if system(command) !=# '' || v:shell_error != 0
+		call s:err_msg('Copy failed: ' . src_name)
+		return
+	endif
+
 	echo printf("\rCopyed. '%s' --> '%s'", src_name, dst)
 
 	"Refresh minfy
@@ -601,8 +612,7 @@ function! s:bookmark_open() abort
 	" Delete the contents of the buffer to the black-hole register
 	setlocal modifiable
 	silent! %delete _
-	call setline(1, "bookmarks")
-	call setline(2, output)
+	call setline(1, ["bookmarks"] + output)
 	setlocal nomodifiable
 
 	" Move the cursor to the beginning of the file
