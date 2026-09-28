@@ -176,6 +176,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> b :<C-u>call <SID>bookmark_open()<CR>
 		nnoremap <buffer> <silent> h :<C-u>call <SID>open_parent()<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>quit()<CR>
+		nnoremap <buffer> <silent> <ESC> :<C-u>call <SID>quit()<CR>
 		nnoremap <buffer> <silent> a :<C-u>call <SID>bookmark_add()<CR>
 		nnoremap <buffer> <silent> rm :<C-u>call <SID>file_delete()<CR>
 		nnoremap <buffer> <silent> cp :<C-u>call <SID>file_copy()<CR>
@@ -190,6 +191,7 @@ function! s:set_keymap(map_type) abort
 		nnoremap <buffer> <silent> L :<C-u>call <SID>bookmark_selected('edit', 1)<CR>
 		nnoremap <buffer> <silent> v :<C-u>call <SID>bookmark_selected('vsplit', 0)<CR>
 		nnoremap <buffer> <silent> q :<C-u>call <SID>bookmark_close()<CR>
+		nnoremap <buffer> <silent> <ESC> :<C-u>call <SID>bookmark_close()<CR>
 		nnoremap <buffer> <silent> s :<C-u>call <SID>bookmark_separator()<CR>
 		nnoremap <buffer> <silent> e :<C-u>call <SID>bookmark_edit()<CR>
 		nnoremap <buffer> <silent> K :<C-u>call <SID>bookmark_updown('up')<CR>
@@ -681,7 +683,7 @@ function! s:bookmark_separator() abort
 	" カーソル位置にセパレータを追加
 	call insert(s:bookmark, "&sep\t".sep_name, line(".") - 1)
 	setlocal modifiable
-	call append(line("."), sep_name)
+	call append(line("."), "- " . sep_name)
 	setlocal nomodifiable
 
 	let s:bookmark_modified = 1
